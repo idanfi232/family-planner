@@ -8,7 +8,8 @@ export default function DayColumn({
   tasks, 
   members,
   onAddTask, 
-  onEditTask 
+  onEditTask,
+  hideHeader = false
 }) {
   const sortedTasks = [...tasks].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
@@ -20,23 +21,27 @@ export default function DayColumn({
 
   return (
     <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-full">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
-        <div>
-          <h2 className="text-base font-bold text-slate-800">יום {dayName}</h2>
-          {shortDate && <span className="text-xs font-medium text-slate-400">{shortDate}</span>}
+      
+      {/* כותרת העמודה - תוצג רק אם hideHeader הוא false (כלומר בתצוגת שבוע) */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">יום {dayName}</h2>
+            {shortDate && <span className="text-xs font-medium text-slate-400">{shortDate}</span>}
+          </div>
+          <button
+            onClick={onAddTask}
+            title="הוסף אירוע ליום זה"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
         </div>
-        <button
-          onClick={onAddTask}
-          title="הוסף אירוע ליום זה"
-          className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
-      </div>
+      )}
 
-      <div className="flex-1 space-y-2.5 p-3 min-h-[180px] overflow-y-auto">
+      <div className="flex-1 space-y-2.5 p-3 min-h-[220px] overflow-y-auto">
         {sortedTasks.length === 0 ? (
-          <div className="flex h-full min-h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+          <div className="flex h-full min-h-[160px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
             אין אירועים מתוכננים
           </div>
         ) : (
@@ -102,7 +107,7 @@ export default function DayColumn({
 
                   {task.affected_members && task.affected_members.length > 0 && (
                     <div className="flex items-center gap-1">
-                      {task.affected_members.map(name => (
+                      {task.affected_members.name.map(name => (
                         <span 
                           key={name} 
                           className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
