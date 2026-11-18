@@ -22,7 +22,6 @@ export default function DayColumn({
   return (
     <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden h-full">
       
-      {/* כותרת העמודה - תוצג רק אם hideHeader הוא false (כלומר בתצוגת שבוע) */}
       {!hideHeader && (
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
           <div>
@@ -107,7 +106,7 @@ export default function DayColumn({
 
                   {task.affected_members && task.affected_members.length > 0 && (
                     <div className="flex items-center gap-1">
-                      {task.affected_members.name.map(name => (
+                      {task.affected_members.map(name => (
                         <span 
                           key={name} 
                           className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
