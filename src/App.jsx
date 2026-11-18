@@ -36,14 +36,67 @@ export default function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
+  // בקשת הרשאה להתראות Push
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // טעינת נתונים והאזנה לשינויים בזמן אמת עם התראות פוש לשבוע הנוכחי בלבד
+  useEffect(() => {
+    let isInitialLoad = true;
+
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
       setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const updatedEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEvents(updatedEvents);
       setIsLoading(false);
+
+      if (isInitialLoad) {
+        isInitialLoad = false;
+        return;
+      }
+
+      // בדיקת שינויים בזמן אמת לשליחת פוש
+      snapshot.docChanges().forEach((change) => {
+        const eventData = { id: change.doc.id, ...change.doc.data() };
+        const eventDate = eventData.date;
+        
+        const weekEnd = new Date(currentWeekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+        const isCurrentWeek = eventDate >= currentWeekStart && eventDate <= weekEndStr;
+
+        if (isCurrentWeek && Notification.permission === "granted") {
+          const d = new Date(eventDate);
+          const dayIndex = d.getDay();
+          const dayName = DAYS_OF_WEEK[dayIndex]?.name || '';
+          const formattedDate = eventDate ? eventDate.split('-').reverse().join('/') : '';
+
+          let title = "";
+          let body = `📅 יום ${dayName} (${formattedDate})\n`;
+
+          if (change.type === 'added') {
+            title = "✨ אירוע חדש נוסף ללו״ז!";
+            body += `נוסף האירוע: "${eventData.title}"`;
+          } else if (change.type === 'modified') {
+            title = "✏️ עדכון בלו״ז המשפחתי";
+            body += `עודכן האירוע: "${eventData.title}"`;
+          }
+
+          if (title) {
+            new Notification(title, {
+              body: body,
+              icon: '/logo.png'
+            });
+          }
+        }
+      });
     });
 
     const unsubMembers = onSnapshot(collection(db, 'members'), (snapshot) => {
@@ -55,7 +108,7 @@ export default function App() {
       unsubEvents();
       unsubMembers();
     };
-  }, []);
+  }, [currentWeekStart]);
 
   const changeWeek = (offsetWeeks) => {
     const d = new Date(currentWeekStart);
