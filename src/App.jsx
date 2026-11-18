@@ -9,7 +9,7 @@ import TaskModal from './components/TaskModal';
 import TaskTrackerTab from './components/TaskTrackerTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 
-const TELEGRAM_BOT_TOKEN = '8893421762:AAEgOSpOK4MT97HBO3hz2k4eUqwjLH4On04';
+const TELEGRAM_BOT_TOKEN = '8893421762:AAFRjIf0b-ZDf2J8kJt9xDuA17x6boKq7Xc';
 const TELEGRAM_CHAT_ID = '7067275881';
 
 const getSundayOfWeek = (date) => {
