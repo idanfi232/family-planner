@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckSquare, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, createEmptyTask } from './types/models';
@@ -25,13 +25,12 @@ export default function App() {
   const [members, setMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [viewMode, setViewMode] = useState('week');
-  
-  const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
-    const todayDayOfWeek = new Date().getDay();
-    return todayDayOfWeek;
-  });
+  // במובייל (רוחב קטן מ-768px) ברירת המחדל היא תצוגת יום, במחשב תצוגת שבוע
+  const [viewMode, setViewMode] = useState(() => (window.innerWidth < 768 ? 'day' : 'week'));
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => new Date().getDay());
 
+  // מצב פתיחה/סגירה של מגירת הסינון במובייל
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedMemberFilter, setSelectedMemberFilter] = useState('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   
@@ -191,152 +190,192 @@ export default function App() {
 
   const weekEndStr = weekDays[6]?.dateStr;
   const formatShort = (str) => str ? str.split('-').slice(1).reverse().join('/') : '';
+  const activeFiltersCount = (selectedMemberFilter !== 'all' ? 1 : 0) + (selectedCategoryFilter !== 'all' ? 1 : 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
+    <div className="min-h-screen bg-slate-50 pb-24">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
-                <CalendarIcon className="h-5 w-5" />
-              </div>
+        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3">
+          
+          {/* שורה 1: כותרת קומפקטית + מעבר טאבים + משתתפים */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <img 
+                src="/logo.png" 
+                alt="לוגו" 
+                onError={(e) => { e.target.style.display = 'none'; }}
+                className="h-8 w-8 rounded-lg object-cover shadow-xs"
+              />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-lg font-bold text-slate-900 leading-tight">המערכת המשפחתית</h1>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                    <Cloud className="h-3 w-3" /> מסונכרן
+                  <h1 className="text-sm sm:text-lg font-bold text-slate-900 leading-tight">המערכת המשפחתית</h1>
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                    <Cloud className="h-2.5 w-2.5" />
+                    <span className="hidden sm:inline">מסונכרן</span>
                   </span>
                 </div>
-                <p className="text-xs text-slate-500">לו"ז ומשימות משותפות</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
+            {/* טאבים ראשיים */}
+            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 sm:p-1">
               <button
                 onClick={() => setActiveTab('schedule')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
                   activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <CalendarIcon className="h-4 w-4" /> לו״ז אירועים
+                <CalendarIcon className="h-3.5 w-3.5" /> לו״ז
               </button>
               <button
                 onClick={() => setActiveTab('todos')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
                   activeTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <CheckSquare className="h-4 w-4" /> ניהול משימות
+                <CheckSquare className="h-3.5 w-3.5" /> משימות
               </button>
             </div>
 
-            {activeTab === 'schedule' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsMembersModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                >
-                  <Users className="h-4 w-4 text-blue-600" />
-                  <span>משתתפים ({members.length})</span>
-                </button>
-
-                <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-1">
-                  <button
-                    onClick={() => setViewMode('week')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${viewMode === 'week' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600'}`}
-                  >
-                    שבוע
-                  </button>
-                  <button
-                    onClick={() => setViewMode('day')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${viewMode === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600'}`}
-                  >
-                    יום
-                  </button>
-                </div>
-
-                <button
-                  onClick={handlePopulateWeek}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
-                >
-                  <CopyPlus className="h-4 w-4" />
-                  <span>טען שגרה</span>
-                </button>
-
-                <button
-                  onClick={() => handleOpenAddModal(viewMode === 'day' ? selectedDayIndex : 0, currentWeekStart)}
-                  className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>אירוע חדש</span>
-                </button>
-              </div>
-            )}
-
+            {/* כפתור ניהול משתתפים */}
+            <button
+              onClick={() => setIsMembersModalOpen(true)}
+              title="ניהול משתתפים"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50"
+            >
+              <Users className="h-4 w-4 text-blue-600" />
+              <span className="hidden sm:inline">משתתפים</span>
+              <span className="text-[11px] text-slate-500">({members.length})</span>
+            </button>
           </div>
 
+          {/* שורה 2: פקדי תאריך, תצוגה, שגרה וסינון מתקפל */}
           {activeTab === 'schedule' && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                <button onClick={() => changeWeek(-1)} className="rounded-lg p-1.5 text-slate-600 hover:bg-white">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <button onClick={() => setCurrentWeekStart(getSundayOfWeek(new Date()))} className="px-3 py-1 text-xs font-bold text-slate-700">
-                  {formatShort(currentWeekStart)} - {formatShort(weekEndStr)}
-                </button>
-                <button onClick={() => changeWeek(1)} className="rounded-lg p-1.5 text-slate-600 hover:bg-white">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* סרגלי סינון (קטגוריית אירוע כ-Dropdown ומסנן משתתף) */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* קטגוריית אירוע כ-Dropdown */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                    <Tag className="h-3.5 w-3.5" /> קטגוריית אירוע:
-                  </span>
-                  <select
-                    value={selectedCategoryFilter}
-                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="all">הכל (הצג הכל)</option>
-                    {EVENT_CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* סינון לפי משתתף */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-1 border-r pr-3">
-                  <span className="text-xs font-medium text-slate-400">משתתף:</span>
-                  <button
-                    onClick={() => setSelectedMemberFilter('all')}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${selectedMemberFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
-                  >
-                    כולם
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-1.5">
+                
+                {/* ניווט שבועות */}
+                <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+                  <button onClick={() => changeWeek(-1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
+                    <ChevronRight className="h-4 w-4" />
                   </button>
-                  {members.map(member => (
+                  <button onClick={() => {
+                    setCurrentWeekStart(getSundayOfWeek(new Date()));
+                    setSelectedDayIndex(new Date().getDay());
+                  }} className="px-1.5 py-0.5 text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap">
+                    {formatShort(currentWeekStart)} - {formatShort(weekEndStr)}
+                  </button>
+                  <button onClick={() => changeWeek(1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* פעולות מהירות: יום/שבוע, טען שגרה, כפתור סינון */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-0.5">
                     <button
-                      key={member.id}
-                      onClick={() => setSelectedMemberFilter(member.name)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${selectedMemberFilter === member.name ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                      onClick={() => setViewMode('day')}
+                      className={`rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold ${viewMode === 'day' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
                     >
-                      {member.name}
+                      יום
                     </button>
-                  ))}
+                    <button
+                      onClick={() => setViewMode('week')}
+                      className={`rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold ${viewMode === 'week' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600'}`}
+                    >
+                      שבוע
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handlePopulateWeek}
+                    title="טען שגרה שבועית"
+                    className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                  >
+                    <CopyPlus className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">טען שגרה</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
+                      showFilters || activeFiltersCount > 0
+                        ? 'border-blue-300 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>סינון</span>
+                    {activeFiltersCount > 0 && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </button>
                 </div>
               </div>
 
+              {/* מגירת סינון מתקפלת */}
+              {showFilters && (
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 border border-slate-200">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    {/* קטגוריית אירוע */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                        <Tag className="h-3.5 w-3.5" /> קטגוריה:
+                      </span>
+                      <select
+                        value={selectedCategoryFilter}
+                        onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                      >
+                        <option value="all">הכל</option>
+                        {EVENT_CATEGORIES.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* סינון לפי משתתף */}
+                    <div className="flex items-center gap-1 overflow-x-auto">
+                      <span className="text-xs font-medium text-slate-500">משתתף:</span>
+                      <button
+                        onClick={() => setSelectedMemberFilter('all')}
+                        className={`rounded-lg px-2 py-1 text-xs font-semibold ${selectedMemberFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+                      >
+                        כולם
+                      </button>
+                      {members.map(member => (
+                        <button
+                          key={member.id}
+                          onClick={() => setSelectedMemberFilter(member.name)}
+                          className={`rounded-lg px-2 py-1 text-xs font-semibold whitespace-nowrap ${selectedMemberFilter === member.name ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+                        >
+                          {member.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {activeFiltersCount > 0 && (
+                    <button
+                      onClick={() => {
+                        setSelectedMemberFilter('all');
+                        setSelectedCategoryFilter('all');
+                      }}
+                      className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="h-3 w-3" /> נקה סינון
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
+      <main className="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-6">
         {activeTab === 'schedule' ? (
           isLoading ? (
             <div className="flex h-64 items-center justify-center text-sm text-slate-500">טוען נתונים מהענן...</div>
@@ -356,22 +395,22 @@ export default function App() {
             </div>
           ) : (
             <div className="max-w-xl mx-auto">
-              <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
                 <button
                   onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
-                  className="rounded-xl p-2 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
                 >
-                  <ChevronRight className="h-5 w-5" /> יום קודם
+                  <ChevronRight className="h-4 w-4" /> יום קודם
                 </button>
                 <div className="text-center">
-                  <h2 className="text-lg font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
+                  <h2 className="text-base font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
                   <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
                 </div>
                 <button
                   onClick={() => setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0))}
-                  className="rounded-xl p-2 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
                 >
-                  יום הבא <ChevronLeft className="h-5 w-5" />
+                  יום הבא <ChevronLeft className="h-4 w-4" />
                 </button>
               </div>
 
@@ -389,6 +428,20 @@ export default function App() {
           <TaskTrackerTab members={members} />
         )}
       </main>
+
+      {/* כפתור הוספת אירוע צף (FAB) במקום כפתור שתופס מקום למעלה */}
+      {activeTab === 'schedule' && (
+        <button
+          onClick={() => handleOpenAddModal(
+            viewMode === 'day' ? selectedDayIndex : new Date().getDay(), 
+            viewMode === 'day' ? weekDays[selectedDayIndex].dateStr : currentWeekStart
+          )}
+          title="הוסף אירוע חדש"
+          className="fixed bottom-6 left-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-300 transition-transform hover:scale-105 hover:bg-blue-700 active:scale-95"
+        >
+          <Plus className="h-7 w-7" />
+        </button>
+      )}
 
       {isModalOpen && editingTask && (
         <TaskModal
