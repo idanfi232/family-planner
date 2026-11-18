@@ -9,12 +9,67 @@ import TaskModal from './components/TaskModal';
 import TaskTrackerTab from './components/TaskTrackerTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 
+const TELEGRAM_BOT_TOKEN = '8893421762:AAEgOSpOK4MT97HBO3hz2k4eUqwjLH4On04';
+const TELEGRAM_CHAT_ID = '7067275881';
+
 const getSundayOfWeek = (date) => {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day;
   d.setDate(diff);
   return d.toISOString().split('T')[0];
+};
+
+const sendTelegramNotification = async (task, actionType) => {
+  if (!task || !task.date) return;
+
+  // בדיקה האם תאריך האירוע שייך לשבוע הקלנדרי הנוכחי (ראשון עד שבת של השבוע של היום)
+  const todaySundayStr = getSundayOfWeek(new Date());
+  const saturdayDate = new Date(todaySundayStr);
+  saturdayDate.setDate(saturdayDate.getDate() + 6);
+  const todaySaturdayStr = saturdayDate.toISOString().split('T')[0];
+
+  if (task.date < todaySundayStr || task.date > todaySaturdayStr) {
+    return; // לא שולח התראה עבור שבועות אחרים
+  }
+
+  // חישוב שם היום בעברית ופורמט תאריך קריא
+  const [year, month, day] = task.date.split('-').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  const dayName = DAYS_OF_WEEK[dateObj.getDay()]?.name || '';
+  const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+
+  const header = actionType === 'added'
+    ? '✨ *אירוע חדש נוסף ללו״ז*'
+    : '✏️ *אירוע קיים עודכן בלו״ז*';
+
+  const actionLine = actionType === 'added'
+    ? `נוסף האירוע: *${task.title}*`
+    : `עודכן האירוע: *${task.title}*`;
+
+  const timeLine = task.time
+    ? `\n🕒 שעה: ${task.end_time ? `${task.time} - ${task.end_time}` : task.time}`
+    : '';
+
+  const assigneeLine = task.assignee
+    ? `\n👤 אחראי: ${task.assignee}`
+    : '';
+
+  const message = `${header}\n📅 יום ${dayName} (${formattedDate})\n${actionLine}${timeLine}${assigneeLine}`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch (err) {
+    console.error('Failed to send Telegram notification:', err);
+  }
 };
 
 export default function App() {
@@ -31,72 +86,19 @@ export default function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedMemberFilter, setSelectedMemberFilter] = useState('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
-  // בקשת הרשאה להתראות Push
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // טעינת נתונים והאזנה לשינויים בזמן אמת עם התראות פוש לשבוע הנוכחי בלבד
-  useEffect(() => {
-    let isInitialLoad = true;
-
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
       setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
-      const updatedEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setEvents(updatedEvents);
+      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setIsLoading(false);
-
-      if (isInitialLoad) {
-        isInitialLoad = false;
-        return;
-      }
-
-      // בדיקת שינויים בזמן אמת לשליחת פוש
-      snapshot.docChanges().forEach((change) => {
-        const eventData = { id: change.doc.id, ...change.doc.data() };
-        const eventDate = eventData.date;
-        
-        const weekEnd = new Date(currentWeekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        const weekEndStr = weekEnd.toISOString().split('T')[0];
-
-        const isCurrentWeek = eventDate >= currentWeekStart && eventDate <= weekEndStr;
-
-        if (isCurrentWeek && Notification.permission === "granted") {
-          const d = new Date(eventDate);
-          const dayIndex = d.getDay();
-          const dayName = DAYS_OF_WEEK[dayIndex]?.name || '';
-          const formattedDate = eventDate ? eventDate.split('-').reverse().join('/') : '';
-
-          let title = "";
-          let body = `📅 יום ${dayName} (${formattedDate})\n`;
-
-          if (change.type === 'added') {
-            title = "✨ אירוע חדש נוסף ללו״ז!";
-            body += `נוסף האירוע: "${eventData.title}"`;
-          } else if (change.type === 'modified') {
-            title = "✏️ עדכון בלו״ז המשפחתי";
-            body += `עודכן האירוע: "${eventData.title}"`;
-          }
-
-          if (title) {
-            new Notification(title, {
-              body: body,
-              icon: '/logo.png'
-            });
-          }
-        }
-      });
     });
 
     const unsubMembers = onSnapshot(collection(db, 'members'), (snapshot) => {
@@ -108,7 +110,7 @@ export default function App() {
       unsubEvents();
       unsubMembers();
     };
-  }, [currentWeekStart]);
+  }, []);
 
   const changeWeek = (offsetWeeks) => {
     const d = new Date(currentWeekStart);
@@ -165,6 +167,8 @@ export default function App() {
           const oneOffId = `oneoff_${Date.now()}`;
           await setDoc(doc(db, 'events', oneOffId), { ...savedTask, id: oneOffId, template_id: null, status: 'active' });
         }
+
+        await sendTelegramNotification(savedTask, 'added');
       } else {
         if (savedTask.template_id && editScope === 'template') {
           const batch = writeBatch(db);
@@ -181,6 +185,8 @@ export default function App() {
         } else {
           await setDoc(doc(db, 'events', savedTask.id), { ...savedTask, is_modified: true });
         }
+
+        await sendTelegramNotification(savedTask, 'modified');
       }
     } catch (err) {
       console.error("Error saving event:", err);
@@ -222,7 +228,7 @@ export default function App() {
 
     const dayTasks = events.filter(e => {
       if (e.date !== dateStr) return false;
-      
+
       if (selectedMemberFilter !== 'all') {
         const matchesAssignee = e.assignee === selectedMemberFilter;
         const matchesAffected = e.affected_members && e.affected_members.includes(selectedMemberFilter);
@@ -247,12 +253,12 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 pb-24">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3">
-          
+
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <img 
-                src="/logo.png" 
-                alt="לוגו" 
+              <img
+                src="/logo.png"
+                alt="לוגו"
                 onError={(e) => { e.target.style.display = 'none'; }}
                 className="h-8 w-8 rounded-lg object-cover shadow-xs"
               />
@@ -300,7 +306,7 @@ export default function App() {
           {activeTab === 'schedule' && (
             <div className="mt-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between gap-1.5">
-                
+
                 <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
                   <button onClick={() => changeWeek(-1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
                     <ChevronRight className="h-4 w-4" />
@@ -475,7 +481,7 @@ export default function App() {
       {activeTab === 'schedule' && (
         <button
           onClick={() => handleOpenAddModal(
-            viewMode === 'day' ? selectedDayIndex : new Date().getDay(), 
+            viewMode === 'day' ? selectedDayIndex : new Date().getDay(),
             viewMode === 'day' ? weekDays[selectedDayIndex].dateStr : currentWeekStart
           )}
           title="הוסף אירוע חדש"
