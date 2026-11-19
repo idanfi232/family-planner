@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, createEmptyTask } from './types/models';
@@ -7,10 +7,19 @@ import { generateWeekSchedule } from './utils/smartMerge';
 import DayColumn from './components/DayColumn';
 import TaskModal from './components/TaskModal';
 import TaskTrackerTab from './components/TaskTrackerTab';
+import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 
-const TELEGRAM_BOT_TOKEN = '8893421762:AAFRjIf0b-ZDf2J8kJt9xDuA17x6boKq7Xc';
+const TELEGRAM_BOT_TOKEN = '';
 const TELEGRAM_CHAT_ID = '7067275881';
+
+const getTodayStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 const getSundayOfWeek = (date) => {
   const d = new Date(date);
@@ -91,6 +100,8 @@ export default function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
+  const todayStr = getTodayStr();
+
   useEffect(() => {
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
       setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -146,6 +157,18 @@ export default function App() {
   const handleOpenEditModal = (task) => {
     setEditingTask({ ...task });
     setIsModalOpen(true);
+  };
+
+  const handleToggleCompleteTask = async (task) => {
+    try {
+      await setDoc(
+        doc(db, 'events', task.id),
+        { ...task, is_completed: !task.is_completed },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error("Error toggling complete status:", err);
+    }
   };
 
   const handleSaveTask = async (savedTask, editScope) => {
@@ -246,7 +269,7 @@ export default function App() {
   });
 
   const weekEndStr = weekDays[6]?.dateStr;
-  const formatShort = (str) => str ? str.split('-').slice(1).reverse().join('/') : '';
+  const formatShort = (str) => (str ? str.split('-').slice(1).reverse().join('/') : '');
   const activeFiltersCount = (selectedMemberFilter !== 'all' ? 1 : 0) + (selectedCategoryFilter !== 'all' ? 1 : 0);
 
   return (
@@ -276,7 +299,7 @@ export default function App() {
             <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 sm:p-1">
               <button
                 onClick={() => setActiveTab('schedule')}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
                   activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -284,11 +307,19 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('todos')}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
                   activeTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <CheckSquare className="h-3.5 w-3.5" /> משימות
+              </button>
+              <button
+                onClick={() => setActiveTab('shopping')}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
+                  activeTab === 'shopping' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShoppingCart className="h-3.5 w-3.5" /> קניות ומלאי
               </button>
             </div>
 
@@ -438,6 +469,8 @@ export default function App() {
                   members={members}
                   onAddTask={() => handleOpenAddModal(day.id, day.dateStr)}
                   onEditTask={handleOpenEditModal}
+                  onToggleComplete={handleToggleCompleteTask}
+                  isToday={day.dateStr === todayStr}
                 />
               ))}
             </div>
@@ -451,7 +484,12 @@ export default function App() {
                   <ChevronRight className="h-4 w-4" /> יום קודם
                 </button>
                 <div className="text-center">
-                  <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
+                    {weekDays[selectedDayIndex].dateStr === todayStr && (
+                      <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">היום</span>
+                    )}
+                  </div>
                   <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
                 </div>
                 <button
@@ -469,12 +507,16 @@ export default function App() {
                 members={members}
                 onAddTask={() => handleOpenAddModal(weekDays[selectedDayIndex].id, weekDays[selectedDayIndex].dateStr)}
                 onEditTask={handleOpenEditModal}
+                onToggleComplete={handleToggleCompleteTask}
                 hideHeader={true}
+                isToday={weekDays[selectedDayIndex].dateStr === todayStr}
               />
             </div>
           )
-        ) : (
+        ) : activeTab === 'todos' ? (
           <TaskTrackerTab members={members} />
+        ) : (
+          <ShoppingAndPantryTab />
         )}
       </main>
 

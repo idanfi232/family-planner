@@ -1,23 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles, X } from 'lucide-react';
+import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles } from 'lucide-react';
 
 export default function ShoppingAndPantryTab() {
   const [pantryItems, setPantryItems] = useState([]);
   const [shoppingItems, setShoppingItems] = useState([]);
   const [catalog, setCatalog] = useState([]);
 
-  // שדות הוספה לרשימת קניות
   const [newShoppingName, setNewShoppingName] = useState('');
   const [newShoppingQty, setNewShoppingQty] = useState(1);
 
-  // שדות הוספה למלאי בית
   const [newPantryName, setNewPantryName] = useState('');
   const [newPantryQty, setNewPantryQty] = useState(1);
 
-  // הצעה להוספה לקניות לאחר הורדה מהמלאי
-  const [restockPrompt, setRestockPrompt] = useState(null); // { name: string }
+  const [restockPrompt, setRestockPrompt] = useState(null);
 
   useEffect(() => {
     const unsubPantry = onSnapshot(collection(db, 'pantry_items'), (snap) => {
@@ -45,7 +42,6 @@ export default function ShoppingAndPantryTab() {
     };
   }, []);
 
-  // שמירת מוצר בזיכרון המערכת לבחירה עתידית
   const saveToCatalog = async (rawName) => {
     const cleanName = rawName.trim();
     if (!cleanName) return;
@@ -56,7 +52,6 @@ export default function ShoppingAndPantryTab() {
     }
   };
 
-  // הוספה לרשימת קניות
   const handleAddShoppingItem = async (e, overrideName = null, overrideQty = 1) => {
     if (e) e.preventDefault();
     const name = (overrideName !== null ? overrideName : newShoppingName).trim();
@@ -86,7 +81,6 @@ export default function ShoppingAndPantryTab() {
     }
   };
 
-  // הוספה ישירה למלאי הבית
   const handleAddPantryItem = async (e) => {
     e.preventDefault();
     const name = newPantryName.trim();
@@ -113,7 +107,6 @@ export default function ShoppingAndPantryTab() {
     setNewPantryQty(1);
   };
 
-  // הורדה מהמלאי + הצעה להוסיף לרשימת קניות
   const handleDecreasePantry = async (item) => {
     const currentQty = Number(item.quantity) || 1;
     if (currentQty <= 1) {
@@ -126,14 +119,12 @@ export default function ShoppingAndPantryTab() {
     setRestockPrompt({ name: item.name });
   };
 
-  // העלאה במלאי
   const handleIncreasePantry = async (item) => {
     await updateDoc(doc(db, 'pantry_items', item.id), {
       quantity: (Number(item.quantity) || 0) + 1
     });
   };
 
-  // סימון V על פריט ברשימת הקניות -> מעביר למלאי הבית ומוחק מהקניות
   const handleCompleteShoppingItem = async (shopItem) => {
     const boughtQty = Number(shopItem.quantity) || 1;
     const existingPantry = pantryItems.find(
@@ -156,12 +147,10 @@ export default function ShoppingAndPantryTab() {
     await deleteDoc(doc(db, 'shopping_items', shopItem.id));
   };
 
-  // מחיקה מרשימת קניות ללא העברה למלאי
   const handleDeleteShoppingItem = async (id) => {
     await deleteDoc(doc(db, 'shopping_items', id));
   };
 
-  // הצעות מוצרים מהזיכרון שלא נמצאים כרגע ברשימת הקניות
   const quickSuggestions = useMemo(() => {
     const inShopping = new Set(shoppingItems.map(s => s.name.toLowerCase()));
     return catalog.filter(c => !inShopping.has(c.name.toLowerCase())).slice(0, 12);
@@ -169,14 +158,12 @@ export default function ShoppingAndPantryTab() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      {/* רשימת הצעות מהזיכרון */}
       <datalist id="product-catalog-list">
         {catalog.map(item => (
           <option key={item.id} value={item.name} />
         ))}
       </datalist>
 
-      {/* באנר שאלה לאחר הורדה מהמלאי */}
       {restockPrompt && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
           <div className="text-xs sm:text-sm font-semibold text-amber-900">
@@ -203,7 +190,6 @@ export default function ShoppingAndPantryTab() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* עמודה 1: רשימת קניות */}
         <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -245,7 +231,6 @@ export default function ShoppingAndPantryTab() {
             </button>
           </form>
 
-          {/* בחירה מהירה ממוצרים מוכרים */}
           {quickSuggestions.length > 0 && (
             <div className="mb-4">
               <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
@@ -304,7 +289,6 @@ export default function ShoppingAndPantryTab() {
           )}
         </section>
 
-        {/* עמודה 2: מלאי הבית */}
         <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
