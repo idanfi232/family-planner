@@ -10,7 +10,7 @@ import TaskTrackerTab from './components/TaskTrackerTab';
 import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 
-const TELEGRAM_BOT_TOKEN = '';
+const TELEGRAM_BOT_TOKEN = '8893421762:AAFRjIf0b-ZDf2J8kJt9xDuA17x6boKq7Xc';
 const TELEGRAM_CHAT_ID = '7067275881';
 
 const getTodayStr = () => {
