@@ -273,64 +273,84 @@ export default function App() {
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 pb-24">
       <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3">
+        <div className="mx-auto max-w-7xl px-3 pt-2.5 pb-2 sm:px-6 sm:pt-3.5 sm:pb-2.5">
 
-          <div className="flex items-center justify-between gap-1.5 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+          {/* שורה 1: כותרת המערכת המשפחתית מעוצבת */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <img
                 src="/logo.png"
                 alt="לוגו"
                 onError={(e) => { e.target.style.display = 'none'; }}
-                className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg object-cover shadow-xs shrink-0"
+                className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl object-cover shadow-xs ring-1 ring-slate-200 shrink-0"
               />
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-xs sm:text-lg font-bold text-slate-900 leading-tight truncate">המערכת המשפחתית</h1>
-                  <span className="hidden md:inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 shrink-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="bg-gradient-to-l from-blue-700 via-indigo-700 to-slate-900 bg-clip-text text-base sm:text-xl font-extrabold tracking-tight text-transparent leading-tight truncate">
+                    המערכת המשפחתית
+                  </h1>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 shrink-0">
                     <Cloud className="h-2.5 w-2.5" />
-                    <span>מסונכרן</span>
+                    <span className="hidden sm:inline">מסונכרן</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-0.5 sm:gap-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 sm:p-1 shrink-0">
-              <button
-                onClick={() => setActiveTab('schedule')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CalendarIcon className="h-3.5 w-3.5 shrink-0" /> לו״ז
-              </button>
-              <button
-                onClick={() => setActiveTab('todos')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CheckSquare className="h-3.5 w-3.5 shrink-0" /> משימות
-              </button>
-              <button
-                onClick={() => setActiveTab('shopping')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'shopping' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <ShoppingCart className="h-3.5 w-3.5 shrink-0" /> קניות ומלאי
-              </button>
-            </div>
-
             <button
               onClick={() => setIsMembersModalOpen(true)}
               title="ניהול משתתפים"
-              className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 shrink-0"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 shrink-0"
             >
               <Users className="h-4 w-4 text-blue-600" />
               <span>משתתפים</span>
-              <span className="text-[11px] text-slate-500">({members.length})</span>
+              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">
+                {members.length}
+              </span>
             </button>
           </div>
+
+          {/* שורה 2: טאבים ראשיים (לו"ז / משימות / קניות ומלאי) */}
+          <nav aria-label="ניווט ראשי" className="mt-2.5">
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('schedule')}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  activeTab === 'schedule'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span>לו״ז</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('todos')}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  activeTab === 'todos'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span>משימות</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('shopping')}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  activeTab === 'shopping'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span>קניות ומלאי</span>
+              </button>
+            </div>
+          </nav>
 
           {activeTab === 'schedule' && (
             <div className="mt-2 pt-2 border-t border-slate-100">
