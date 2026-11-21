@@ -55,7 +55,7 @@ const sendTelegramNotification = async (task, actionType) => {
     : `עודכן האירוע: *${task.title}*`;
 
   const timeLine = task.time
-    ? `\n🕒 שעה: ${task.end_time ? `${task.time} - ${task.end_time}` : task.time}`
+    ? `\n🕒 שעה: ${task.end_time ? `${task.time} -${task.end_time}` : task.time}`
     : '';
 
   const assigneeLine = task.assignee
@@ -127,9 +127,10 @@ export default function App() {
       return;
     }
 
-    if (deltaX < 0) {
+    // החלקה ימינה מעבירה קדימה ליום הבא; החלקה שמאלה חוזרת ליום הקודם
+    if (deltaX > 0) {
       setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0));
-    } else if (deltaX > 0) {
+    } else if (deltaX < 0) {
       setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6));
     }
   };
@@ -544,7 +545,7 @@ export default function App() {
               onTouchEnd={handleDayTouchEnd}
               className="max-w-xl mx-auto select-none sm:select-auto"
             >
-              <div className="flex items-center justify-between mb-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="sticky top-[88px] sm:top-[108px] z-20 flex items-center justify-between mb-3 bg-white/95 p-3 rounded-2xl border border-slate-200 shadow-xs backdrop-blur-md">
                 <button
                   onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
                   className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"

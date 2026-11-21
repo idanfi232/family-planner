@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X } from 'lucide-react';
 
 export default function ShoppingAndPantryTab() {
   const [subTab, setSubTab] = useState('pantry'); // 'pantry' (ברירת מחדל) | 'shopping'
@@ -211,11 +211,6 @@ export default function ShoppingAndPantryTab() {
     await deleteDoc(doc(db, 'shopping_items', id));
   };
 
-  const quickSuggestions = useMemo(() => {
-    const inShopping = new Set(shoppingItems.map(s => s.name.toLowerCase()));
-    return catalog.filter(c => !inShopping.has(c.name.toLowerCase())).slice(0, 12);
-  }, [catalog, shoppingItems]);
-
   const pantryFilterQuery = newPantryName.trim().toLowerCase();
   const filteredPantryItems = useMemo(() => {
     if (!pantryFilterQuery) return pantryItems;
@@ -414,7 +409,7 @@ export default function ShoppingAndPantryTab() {
               </span>
             </div>
 
-            <form onSubmit={(e) => handleAddShoppingItem(e)} className="mb-3 flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <form onSubmit={(e) => handleAddShoppingItem(e)} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               <input
                 type="text"
                 list="product-catalog-list"
@@ -454,26 +449,6 @@ export default function ShoppingAndPantryTab() {
                 <Plus className="h-4 w-4" />
               </button>
             </form>
-
-            {quickSuggestions.length > 0 && (
-              <div>
-                <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
-                  <Sparkles className="h-3 w-3" /> הוספה מהירה ממוצרים קודמים:
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {quickSuggestions.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleAddShoppingItem(null, item.name, 1)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                    >
-                      + {item.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
