@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles, AlertTriangle, X } from 'lucide-react';
@@ -17,6 +17,41 @@ export default function ShoppingAndPantryTab() {
   const [newPantryQty, setNewPantryQty] = useState(1);
 
   const [restockPrompt, setRestockPrompt] = useState(null);
+
+  // מעקב אחר נקודת התחלה של החלקה (Swipe) במובייל
+  const touchStartRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    const tag = e.target?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      touchStartRef.current = null;
+      return;
+    }
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartRef.current || e.changedTouches.length !== 1) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+
+    // לוודא שמדובר בהחלקה אופקית מובהקת ולא בגלילה למעלה/למטה
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) {
+      return;
+    }
+
+    // ב-RTL: מלאי מימין, רשימת קניות משמאל
+    if (deltaX < 0 && subTab === 'pantry') {
+      setSubTab('shopping');
+    } else if (deltaX > 0 && subTab === 'shopping') {
+      setSubTab('pantry');
+    }
+  };
 
   useEffect(() => {
     const unsubPantry = onSnapshot(collection(db, 'pantry_items'), (snap) => {
@@ -176,7 +211,11 @@ export default function ShoppingAndPantryTab() {
   }, [pantryItems, pantryFilterQuery]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="mx-auto max-w-3xl space-y-4 select-none sm:select-auto"
+    >
       <datalist id="product-catalog-list">
         {catalog.map(item => (
           <option key={item.id} value={item.name} />
