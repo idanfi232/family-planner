@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
@@ -98,7 +98,41 @@ export default function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
+  const dayTouchStartRef = useRef(null);
+
   const todayStr = getTodayStr();
+
+  const handleDayTouchStart = (e) => {
+    if (activeTab !== 'schedule' || viewMode !== 'day') return;
+    if (e.touches.length !== 1) return;
+    const tag = e.target?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      dayTouchStartRef.current = null;
+      return;
+    }
+    dayTouchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  };
+
+  const handleDayTouchEnd = (e) => {
+    if (activeTab !== 'schedule' || viewMode !== 'day') return;
+    if (!dayTouchStartRef.current || e.changedTouches.length !== 1) return;
+    const deltaX = e.changedTouches[0].clientX - dayTouchStartRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - dayTouchStartRef.current.y;
+    dayTouchStartRef.current = null;
+
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0));
+    } else if (deltaX > 0) {
+      setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6));
+    }
+  };
 
   useEffect(() => {
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
@@ -271,8 +305,8 @@ export default function App() {
   const activeFiltersCount = (selectedMemberFilter !== 'all' ? 1 : 0) + (selectedCategoryFilter !== 'all' ? 1 : 0);
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 pb-24">
-      <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 pb-24">
+      <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 shadow-2xs backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-3 pt-2.5 pb-2 sm:px-6 sm:pt-3.5 sm:pb-2.5">
 
           {/* שורה 1: כותרת המערכת המשפחתית מעוצבת */}
@@ -484,7 +518,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-6 min-w-0">
+      <main className="mx-auto max-w-7xl px-3 pt-3.5 sm:px-6 sm:pt-5 min-w-0">
         {activeTab === 'schedule' ? (
           isLoading ? (
             <div className="flex h-64 items-center justify-center text-sm text-slate-500">טוען נתונים מהענן...</div>
@@ -505,7 +539,11 @@ export default function App() {
               ))}
             </div>
           ) : (
-            <div className="max-w-xl mx-auto">
+            <div
+              onTouchStart={handleDayTouchStart}
+              onTouchEnd={handleDayTouchEnd}
+              className="max-w-xl mx-auto select-none sm:select-auto"
+            >
               <div className="flex items-center justify-between mb-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
                 <button
                   onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}

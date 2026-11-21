@@ -80,14 +80,14 @@ export default function TaskTrackerTab({ members }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-[88px] sm:top-[108px] z-20 flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-2xs backdrop-blur-md">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">ניהול משימות ומעקב</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">ניהול משימות ומעקב</h2>
           <p className="text-xs text-slate-500">רשימת מטלות ומשימות משפחתיות לביצוע</p>
         </div>
         <button
           onClick={handleOpenAddModal}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-blue-700"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" />
           <span>משימה חדשה</span>

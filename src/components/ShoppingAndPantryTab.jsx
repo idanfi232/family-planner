@@ -226,7 +226,7 @@ export default function ShoppingAndPantryTab() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="mx-auto max-w-3xl w-full space-y-4 select-none sm:select-auto"
+      className="mx-auto max-w-3xl w-full select-none sm:select-auto"
     >
       <datalist id="product-catalog-list">
         {catalog.map(item => (
@@ -234,83 +234,84 @@ export default function ShoppingAndPantryTab() {
         ))}
       </datalist>
 
-      {/* בורר טאבי משנה: מלאי (ברירת מחדל) / רשימת קניות */}
-      <div className="flex items-center justify-center">
-        <div className="inline-flex w-full sm:w-auto rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setSubTab('pantry')}
-            className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
-              subTab === 'pantry'
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Home className="h-4 w-4" />
-            <span>מלאי בבית</span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              subTab === 'pantry' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200/80 text-slate-600'
-            }`}>
-              {pantryItems.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('shopping')}
-            className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
-              subTab === 'shopping'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span>רשימת קניות</span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              subTab === 'shopping' ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/80 text-slate-600'
-            }`}>
-              {shoppingItems.length}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {restockPrompt && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
-          <div className="text-xs sm:text-sm font-semibold text-amber-900">
-            {restockPrompt.isOutOfStock ? (
-              <>
-                <span className="underline">{restockPrompt.name}</span> הסתיים במלאי (מסומן כחסר). להוסיף לרשימת הקניות?
-              </>
-            ) : (
-              <>
-                הורדת <span className="underline">{restockPrompt.name}</span> מהמלאי. להוסיף לרשימת הקניות?
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+      {/* כל החלק העליון שמעל רשימת המוצרים מקובע יחד בזמן גלילה */}
+      <div className="sticky top-[88px] sm:top-[108px] z-20 space-y-3 bg-slate-50/95 pt-1 pb-3 backdrop-blur-md">
+        {/* בורר טאבי משנה: מלאי (ברירת מחדל) / רשימת קניות */}
+        <div className="flex items-center justify-center">
+          <div className="inline-flex w-full sm:w-auto rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-2xs">
             <button
-              onClick={async () => {
-                await handleAddShoppingItem(null, restockPrompt.name, 1);
-                setRestockPrompt(null);
-              }}
-              className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+              type="button"
+              onClick={() => setSubTab('pantry')}
+              className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
+                subTab === 'pantry'
+                  ? 'bg-white text-emerald-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              כן, הוסף לקניות
+              <Home className="h-4 w-4" />
+              <span>מלאי בבית</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                subTab === 'pantry' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200/80 text-slate-600'
+              }`}>
+                {pantryItems.length}
+              </span>
             </button>
+
             <button
-              onClick={() => setRestockPrompt(null)}
-              className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+              type="button"
+              onClick={() => setSubTab('shopping')}
+              className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
+                subTab === 'shopping'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              לא צריך
+              <ShoppingCart className="h-4 w-4" />
+              <span>רשימת קניות</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                subTab === 'shopping' ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/80 text-slate-600'
+              }`}>
+                {shoppingItems.length}
+              </span>
             </button>
           </div>
         </div>
-      )}
 
-      {subTab === 'pantry' ? (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-xs">
-          <div className="sticky top-[84px] sm:top-[102px] z-20 rounded-t-2xl border-b border-slate-200/80 bg-white/95 p-3.5 sm:p-5 backdrop-blur-md">
+        {restockPrompt && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
+            <div className="text-xs sm:text-sm font-semibold text-amber-900">
+              {restockPrompt.isOutOfStock ? (
+                <>
+                  <span className="underline">{restockPrompt.name}</span> הסתיים במלאי (מסומן כחסר). להוסיף לרשימת הקניות?
+                </>
+              ) : (
+                <>
+                  הורדת <span className="underline">{restockPrompt.name}</span> מהמלאי. להוסיף לרשימת הקניות?
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  await handleAddShoppingItem(null, restockPrompt.name, 1);
+                  setRestockPrompt(null);
+                }}
+                className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+              >
+                כן, הוסף לקניות
+              </button>
+              <button
+                onClick={() => setRestockPrompt(null)}
+                className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                לא צריך
+              </button>
+            </div>
+          </div>
+        )}
+
+        {subTab === 'pantry' ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -396,201 +397,206 @@ export default function ShoppingAndPantryTab() {
               </div>
             )}
           </div>
-
-          <div className="p-3.5 sm:p-5">
-            {pantryItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
-                עדיין לא הוזנו פריטים למלאי הבית
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <ShoppingCart className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">רשימת קניות</h2>
+                  <p className="text-xs text-slate-500">סימון V יעביר אוטומטית למלאי הבית</p>
+                </div>
               </div>
-            ) : filteredPantryItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
-                לא נמצאו פריטים במלאי התואמים ל- &ldquo;{newPantryName.trim()}&rdquo;
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                {shoppingItems.length} פריטים
+              </span>
+            </div>
+
+            <form onSubmit={(e) => handleAddShoppingItem(e)} className="mb-3 flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <input
+                type="text"
+                list="product-catalog-list"
+                value={newShoppingName}
+                onChange={(e) => setNewShoppingName(e.target.value)}
+                placeholder="הוסף מוצר לקנייה..."
+                className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
+              />
+
+              <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 p-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setNewShoppingQty(q => Math.max(1, (Number(q) || 1) - 1))}
+                  title="הפחת כמות להוספה"
+                  className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+                >
+                  <Minus className="h-3 w-3" />
+                </button>
+                <span className="min-w-[1.4rem] text-center text-xs sm:text-sm font-bold text-slate-900">
+                  {Math.max(1, Number(newShoppingQty) || 1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewShoppingQty(q => Math.max(1, Number(q) || 1) + 1)}
+                  title="הוסף כמות להוספה"
+                  className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
               </div>
-            ) : (
-              <ul className="space-y-2">
-                {filteredPantryItems.map(item => {
-                  const qty = Math.max(0, Number(item.quantity) || 0);
-                  const isOutOfStock = qty === 0;
-                  const isLowStock = Boolean(item.lowStock) && !isOutOfStock;
 
-                  const rowStyle = isOutOfStock
-                    ? 'border-rose-200 bg-rose-50/70'
-                    : isLowStock
-                    ? 'border-amber-300 bg-amber-50/70'
-                    : 'border-slate-200/80 bg-white';
+              <button
+                type="submit"
+                title="הוסף לרשימת קניות"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </form>
 
-                  return (
-                    <li
+            {quickSuggestions.length > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  <Sparkles className="h-3 w-3" /> הוספה מהירה ממוצרים קודמים:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {quickSuggestions.map(item => (
+                    <button
                       key={item.id}
-                      className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                      type="button"
+                      onClick={() => handleAddShoppingItem(null, item.name, 1)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
                     >
-                      <div className="flex flex-wrap items-center gap-2 min-w-0">
-                        <span
-                          className={`text-sm font-semibold break-words ${
-                            isOutOfStock
-                              ? 'text-rose-900'
-                              : isLowStock
-                              ? 'text-amber-950'
-                              : 'text-slate-800'
-                          }`}
-                        >
-                          {item.name}
-                        </span>
-
-                        {isOutOfStock && (
-                          <span className="inline-flex items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                            חסר
-                          </span>
-                        )}
-
-                        {isLowStock && (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                            <AlertTriangle className="h-3 w-3" /> מתקרב לסיום
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleAddShoppingItem(null, item.name, 1)}
-                          title="הוסף פריט לרשימת הקניות"
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                        >
-                          <ShoppingCart className="h-3 w-3" />
-                          <span>הוסף לקניות</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleLowStock(item)}
-                          title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                            item.lowStock
-                              ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
-                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
-                          }`}
-                        >
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="hidden sm:inline">{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDecreasePantry(item)}
-                          disabled={qty === 0}
-                          title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-
-                        <span
-                          className={`min-w-[2rem] text-center text-sm font-bold ${
-                            isOutOfStock
-                              ? 'text-rose-700'
-                              : isLowStock
-                              ? 'text-amber-800'
-                              : 'text-slate-900'
-                          }`}
-                        >
-                          {qty}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => handleIncreasePantry(item)}
-                          title="הוסף יחידה"
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      + {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
+        )}
+      </div>
+
+      {/* רשימת הפריטים הנגללת מתחת לחלק העליון המקובע */}
+      {subTab === 'pantry' ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
+          {pantryItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+              עדיין לא הוזנו פריטים למלאי הבית
+            </div>
+          ) : filteredPantryItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+              לא נמצאו פריטים במלאי התואמים ל- &ldquo;{newPantryName.trim()}&rdquo;
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {filteredPantryItems.map(item => {
+                const qty = Math.max(0, Number(item.quantity) || 0);
+                const isOutOfStock = qty === 0;
+                const isLowStock = Boolean(item.lowStock) && !isOutOfStock;
+
+                const rowStyle = isOutOfStock
+                  ? 'border-rose-200 bg-rose-50/70'
+                  : isLowStock
+                  ? 'border-amber-300 bg-amber-50/70'
+                  : 'border-slate-200/80 bg-white';
+
+                return (
+                  <li
+                    key={item.id}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span
+                        className={`text-sm font-semibold break-words ${
+                          isOutOfStock
+                            ? 'text-rose-900'
+                            : isLowStock
+                            ? 'text-amber-950'
+                            : 'text-slate-800'
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {isOutOfStock && (
+                        <span className="inline-flex items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                          חסר
+                        </span>
+                      )}
+
+                      {isLowStock && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          <AlertTriangle className="h-3 w-3" /> מתקרב לסיום
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAddShoppingItem(null, item.name, 1)}
+                        title="הוסף פריט לרשימת הקניות"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                      >
+                        <ShoppingCart className="h-3 w-3" />
+                        <span>הוסף לקניות</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLowStock(item)}
+                        title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          item.lowStock
+                            ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
+                        }`}
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="hidden sm:inline">{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDecreasePantry(item)}
+                        disabled={qty === 0}
+                        title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+
+                      <span
+                        className={`min-w-[2rem] text-center text-sm font-bold ${
+                          isOutOfStock
+                            ? 'text-rose-700'
+                            : isLowStock
+                            ? 'text-amber-800'
+                            : 'text-slate-900'
+                        }`}
+                      >
+                        {qty}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleIncreasePantry(item)}
+                        title="הוסף יחידה"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       ) : (
         <section className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                <ShoppingCart className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">רשימת קניות</h2>
-                <p className="text-xs text-slate-500">סימון V יעביר אוטומטית למלאי הבית</p>
-              </div>
-            </div>
-            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-              {shoppingItems.length} פריטים
-            </span>
-          </div>
-
-          <form onSubmit={(e) => handleAddShoppingItem(e)} className="mb-3 flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <input
-              type="text"
-              list="product-catalog-list"
-              value={newShoppingName}
-              onChange={(e) => setNewShoppingName(e.target.value)}
-              placeholder="הוסף מוצר לקנייה..."
-              className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
-            />
-
-            <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 p-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setNewShoppingQty(q => Math.max(1, (Number(q) || 1) - 1))}
-                title="הפחת כמות להוספה"
-                className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
-              >
-                <Minus className="h-3 w-3" />
-              </button>
-              <span className="min-w-[1.4rem] text-center text-xs sm:text-sm font-bold text-slate-900">
-                {Math.max(1, Number(newShoppingQty) || 1)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setNewShoppingQty(q => Math.max(1, Number(q) || 1) + 1)}
-                title="הוסף כמות להוספה"
-                className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              title="הוסף לרשימת קניות"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </form>
-
-          {quickSuggestions.length > 0 && (
-            <div className="mb-4">
-              <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
-                <Sparkles className="h-3 w-3" /> הוספה מהירה ממוצרים קודמים:
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {quickSuggestions.map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleAddShoppingItem(null, item.name, 1)}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                  >
-                    + {item.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {shoppingItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
               רשימת הקניות ריקה כרגע
