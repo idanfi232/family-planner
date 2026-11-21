@@ -10,7 +10,7 @@ import TaskTrackerTab from './components/TaskTrackerTab';
 import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 
-const TELEGRAM_BOT_TOKEN = '8893421762:AAFRjIf0b-ZDf2J8kJt9xDuA17x6boKq7Xc';
+const TELEGRAM_BOT_TOKEN = '';
 const TELEGRAM_CHAT_ID = '7067275881';
 
 const getTodayStr = () => {
@@ -32,17 +32,15 @@ const getSundayOfWeek = (date) => {
 const sendTelegramNotification = async (task, actionType) => {
   if (!task || !task.date) return;
 
-  // בדיקה האם תאריך האירוע שייך לשבוע הקלנדרי הנוכחי (ראשון עד שבת של השבוע של היום)
   const todaySundayStr = getSundayOfWeek(new Date());
   const saturdayDate = new Date(todaySundayStr);
   saturdayDate.setDate(saturdayDate.getDate() + 6);
   const todaySaturdayStr = saturdayDate.toISOString().split('T')[0];
 
   if (task.date < todaySundayStr || task.date > todaySaturdayStr) {
-    return; // לא שולח התראה עבור שבועות אחרים
+    return;
   }
 
-  // חישוב שם היום בעברית ופורמט תאריך קריא
   const [year, month, day] = task.date.split('-').map(Number);
   const dateObj = new Date(year, month - 1, day);
   const dayName = DAYS_OF_WEEK[dateObj.getDay()]?.name || '';
@@ -273,72 +271,72 @@ export default function App() {
   const activeFiltersCount = (selectedMemberFilter !== 'all' ? 1 : 0) + (selectedCategoryFilter !== 'all' ? 1 : 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 pb-24">
+      <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3">
 
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 shrink-0">
               <img
                 src="/logo.png"
                 alt="לוגו"
                 onError={(e) => { e.target.style.display = 'none'; }}
-                className="h-8 w-8 rounded-lg object-cover shadow-xs"
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg object-cover shadow-xs shrink-0"
               />
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm sm:text-lg font-bold text-slate-900 leading-tight">המערכת המשפחתית</h1>
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                  <h1 className="text-xs sm:text-lg font-bold text-slate-900 leading-tight truncate">המערכת המשפחתית</h1>
+                  <span className="hidden md:inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 shrink-0">
                     <Cloud className="h-2.5 w-2.5" />
-                    <span className="hidden sm:inline">מסונכרן</span>
+                    <span>מסונכרן</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 sm:p-1">
+            <div className="flex items-center gap-0.5 sm:gap-1 rounded-xl border border-slate-200 bg-slate-100 p-0.5 sm:p-1 shrink-0">
               <button
                 onClick={() => setActiveTab('schedule')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                   activeTab === 'schedule' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <CalendarIcon className="h-3.5 w-3.5" /> לו״ז
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" /> לו״ז
               </button>
               <button
                 onClick={() => setActiveTab('todos')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                   activeTab === 'todos' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <CheckSquare className="h-3.5 w-3.5" /> משימות
+                <CheckSquare className="h-3.5 w-3.5 shrink-0" /> משימות
               </button>
               <button
                 onClick={() => setActiveTab('shopping')}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                   activeTab === 'shopping' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <ShoppingCart className="h-3.5 w-3.5" /> קניות ומלאי
+                <ShoppingCart className="h-3.5 w-3.5 shrink-0" /> קניות ומלאי
               </button>
             </div>
 
             <button
               onClick={() => setIsMembersModalOpen(true)}
               title="ניהול משתתפים"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50"
+              className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 shrink-0"
             >
               <Users className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline">משתתפים</span>
+              <span>משתתפים</span>
               <span className="text-[11px] text-slate-500">({members.length})</span>
             </button>
           </div>
 
           {activeTab === 'schedule' && (
             <div className="mt-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center justify-between gap-1.5 min-w-0">
 
-                <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+                <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5 shrink-0">
                   <button onClick={() => changeWeek(-1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -353,7 +351,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                   <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-0.5">
                     <button
                       onClick={() => setViewMode('day')}
@@ -372,7 +370,7 @@ export default function App() {
                   <button
                     onClick={handlePopulateWeek}
                     title="טען שגרה שבועית"
-                    className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                    className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 border border-indigo-200 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                   >
                     <CopyPlus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">טען שגרה</span>
@@ -380,14 +378,14 @@ export default function App() {
 
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
+                    className={`inline-flex items-center gap-1 rounded-xl border px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                       showFilters || activeFiltersCount > 0
                         ? 'border-blue-300 bg-blue-50 text-blue-700'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <Filter className="h-3.5 w-3.5" />
-                    <span>סינון</span>
+                    <span className="hidden xs:inline sm:inline">סינון</span>
                     {activeFiltersCount > 0 && (
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
                         {activeFiltersCount}
@@ -416,7 +414,7 @@ export default function App() {
                       </select>
                     </div>
 
-                    <div className="flex items-center gap-1 overflow-x-auto">
+                    <div className="flex items-center gap-1 overflow-x-auto max-w-full">
                       <span className="text-xs font-medium text-slate-500">משתתף:</span>
                       <button
                         onClick={() => setSelectedMemberFilter('all')}
@@ -436,17 +434,29 @@ export default function App() {
                     </div>
                   </div>
 
-                  {activeFiltersCount > 0 && (
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                     <button
-                      onClick={() => {
-                        setSelectedMemberFilter('all');
-                        setSelectedCategoryFilter('all');
-                      }}
-                      className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-0.5"
+                      type="button"
+                      onClick={() => setIsMembersModalOpen(true)}
+                      className="inline-flex sm:hidden items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                     >
-                      <X className="h-3 w-3" /> נקה סינון
+                      <Users className="h-3.5 w-3.5 text-blue-600" />
+                      <span>משתתפים</span>
+                      <span className="text-[11px] text-slate-500">({members.length})</span>
                     </button>
-                  )}
+
+                    {activeFiltersCount > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedMemberFilter('all');
+                          setSelectedCategoryFilter('all');
+                        }}
+                        className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-0.5"
+                      >
+                        <X className="h-3 w-3" /> נקה סינון
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -454,7 +464,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-6">
+      <main className="mx-auto max-w-7xl px-3 pt-4 sm:px-6 sm:pt-6 min-w-0">
         {activeTab === 'schedule' ? (
           isLoading ? (
             <div className="flex h-64 items-center justify-center text-sm text-slate-500">טוען נתונים מהענן...</div>
