@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles } from 'lucide-react';
+import { ShoppingCart, Home, Plus, Minus, Check, Trash2, Sparkles, AlertTriangle, X } from 'lucide-react';
 
 export default function ShoppingAndPantryTab() {
   const [pantryItems, setPantryItems] = useState([]);
@@ -91,15 +91,18 @@ export default function ShoppingAndPantryTab() {
 
     const existing = pantryItems.find(item => item.name.toLowerCase() === name.toLowerCase());
     if (existing) {
+      const nextQty = (Number(existing.quantity) || 0) + qty;
       await updateDoc(doc(db, 'pantry_items', existing.id), {
-        quantity: (existing.quantity || 0) + qty
+        quantity: nextQty,
+        ...(nextQty > 0 ? { lowStock: false } : {})
       });
     } else {
       const id = `pantry_${Date.now()}`;
       await setDoc(doc(db, 'pantry_items', id), {
         id,
         name,
-        quantity: qty
+        quantity: qty,
+        lowStock: false
       });
     }
 
@@ -107,21 +110,28 @@ export default function ShoppingAndPantryTab() {
     setNewPantryQty(1);
   };
 
+  // הורדת כמות עד 0 ללא מחיקה — נשמר ברשימה עם חיווי "חסר"
   const handleDecreasePantry = async (item) => {
-    const currentQty = Number(item.quantity) || 1;
-    if (currentQty <= 1) {
-      await deleteDoc(doc(db, 'pantry_items', item.id));
-    } else {
-      await updateDoc(doc(db, 'pantry_items', item.id), {
-        quantity: currentQty - 1
-      });
-    }
-    setRestockPrompt({ name: item.name });
+    const currentQty = Math.max(0, Number(item.quantity) || 0);
+    if (currentQty <= 0) return;
+
+    const nextQty = currentQty - 1;
+    await updateDoc(doc(db, 'pantry_items', item.id), {
+      quantity: nextQty
+    });
+    setRestockPrompt({ name: item.name, isOutOfStock: nextQty === 0 });
   };
 
   const handleIncreasePantry = async (item) => {
+    const nextQty = (Number(item.quantity) || 0) + 1;
     await updateDoc(doc(db, 'pantry_items', item.id), {
-      quantity: (Number(item.quantity) || 0) + 1
+      quantity: nextQty
+    });
+  };
+
+  const handleToggleLowStock = async (item) => {
+    await updateDoc(doc(db, 'pantry_items', item.id), {
+      lowStock: !Boolean(item.lowStock)
     });
   };
 
@@ -133,14 +143,16 @@ export default function ShoppingAndPantryTab() {
 
     if (existingPantry) {
       await updateDoc(doc(db, 'pantry_items', existingPantry.id), {
-        quantity: (Number(existingPantry.quantity) || 0) + boughtQty
+        quantity: (Number(existingPantry.quantity) || 0) + boughtQty,
+        lowStock: false
       });
     } else {
       const id = `pantry_${Date.now()}`;
       await setDoc(doc(db, 'pantry_items', id), {
         id,
         name: shopItem.name,
-        quantity: boughtQty
+        quantity: boughtQty,
+        lowStock: false
       });
     }
 
@@ -156,6 +168,12 @@ export default function ShoppingAndPantryTab() {
     return catalog.filter(c => !inShopping.has(c.name.toLowerCase())).slice(0, 12);
   }, [catalog, shoppingItems]);
 
+  const pantryFilterQuery = newPantryName.trim().toLowerCase();
+  const filteredPantryItems = useMemo(() => {
+    if (!pantryFilterQuery) return pantryItems;
+    return pantryItems.filter(item => item.name.toLowerCase().includes(pantryFilterQuery));
+  }, [pantryItems, pantryFilterQuery]);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <datalist id="product-catalog-list">
@@ -167,7 +185,15 @@ export default function ShoppingAndPantryTab() {
       {restockPrompt && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
           <div className="text-xs sm:text-sm font-semibold text-amber-900">
-            הורדת <span className="underline">{restockPrompt.name}</span> מהמלאי. להוסיף לרשימת הקניות?
+            {restockPrompt.isOutOfStock ? (
+              <>
+                <span className="underline">{restockPrompt.name}</span> הסתיים במלאי (מסומן כחסר). להוסיף לרשימת הקניות?
+              </>
+            ) : (
+              <>
+                הורדת <span className="underline">{restockPrompt.name}</span> מהמלאי. להוסיף לרשימת הקניות?
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -297,23 +323,37 @@ export default function ShoppingAndPantryTab() {
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-900">מה יש בבית (מלאי)</h2>
-                <p className="text-xs text-slate-500">עדכון כמויות בזמן אמת</p>
+                <p className="text-xs text-slate-500">חיפוש מהיר, סימון סיום ועדכון כמויות</p>
               </div>
             </div>
             <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-              {pantryItems.length} מוצרים
+              {pantryFilterQuery
+                ? `${filteredPantryItems.length} / ${pantryItems.length}`
+                : `${pantryItems.length} מוצרים`}
             </span>
           </div>
 
-          <form onSubmit={handleAddPantryItem} className="mb-4 flex gap-2">
-            <input
-              type="text"
-              list="product-catalog-list"
-              value={newPantryName}
-              onChange={(e) => setNewPantryName(e.target.value)}
-              placeholder="הוסף מוצר שקיים בבית..."
-              className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
-            />
+          <form onSubmit={handleAddPantryItem} className="mb-3 flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                list="product-catalog-list"
+                value={newPantryName}
+                onChange={(e) => setNewPantryName(e.target.value)}
+                placeholder="חפש במלאי או הוסף מוצר חדש..."
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2 pr-3 pl-8 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              />
+              {newPantryName && (
+                <button
+                  type="button"
+                  onClick={() => setNewPantryName('')}
+                  title="נקה חיפוש"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <input
               type="number"
               min="1"
@@ -324,43 +364,139 @@ export default function ShoppingAndPantryTab() {
             />
             <button
               type="submit"
+              title="הוסף למלאי"
               className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               <Plus className="h-4 w-4" />
             </button>
           </form>
 
+          {pantryFilterQuery && (
+            <div className="mb-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-1.5 text-[11px] text-slate-600 border border-slate-200/80">
+              <span>
+                מסנן לפי: <strong className="text-slate-800">&ldquo;{newPantryName.trim()}&rdquo;</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setNewPantryName('')}
+                className="font-semibold text-emerald-700 hover:underline"
+              >
+                הצג הכל
+              </button>
+            </div>
+          )}
+
           {pantryItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
               עדיין לא הוזנו פריטים למלאי הבית
             </div>
+          ) : filteredPantryItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+              לא נמצאו פריטים במלאי התואמים ל- &ldquo;{newPantryName.trim()}&rdquo;
+            </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {pantryItems.map(item => (
-                <li key={item.id} className="flex items-center justify-between gap-2 py-2.5">
-                  <span className="text-sm font-semibold text-slate-800">{item.name}</span>
+            <ul className="space-y-2">
+              {filteredPantryItems.map(item => {
+                const qty = Math.max(0, Number(item.quantity) || 0);
+                const isOutOfStock = qty === 0;
+                const isLowStock = Boolean(item.lowStock) && !isOutOfStock;
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleDecreasePantry(item)}
-                      title="הפחת כמות"
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="min-w-[2rem] text-center text-sm font-bold text-slate-900">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => handleIncreasePantry(item)}
-                      title="הוסף יחידה"
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </li>
-              ))}
+                const rowStyle = isOutOfStock
+                  ? 'border-rose-200 bg-rose-50/70'
+                  : isLowStock
+                  ? 'border-amber-300 bg-amber-50/70'
+                  : 'border-slate-200/80 bg-white';
+
+                return (
+                  <li
+                    key={item.id}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span
+                        className={`text-sm font-semibold break-words ${
+                          isOutOfStock
+                            ? 'text-rose-900'
+                            : isLowStock
+                            ? 'text-amber-950'
+                            : 'text-slate-800'
+                        }`}
+                      >
+                        {item.name}
+                      </span>
+
+                      {isOutOfStock && (
+                        <span className="inline-flex items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                          חסר
+                        </span>
+                      )}
+
+                      {isLowStock && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          <AlertTriangle className="h-3 w-3" /> מתקרב לסיום
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAddShoppingItem(null, item.name, 1)}
+                        title="הוסף פריט לרשימת הקניות"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                      >
+                        <ShoppingCart className="h-3 w-3" />
+                        <span>הוסף לקניות</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLowStock(item)}
+                        title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          item.lowStock
+                            ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
+                        }`}
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="hidden sm:inline">{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDecreasePantry(item)}
+                        disabled={qty === 0}
+                        title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+
+                      <span
+                        className={`min-w-[2rem] text-center text-sm font-bold ${
+                          isOutOfStock
+                            ? 'text-rose-700'
+                            : isLowStock
+                            ? 'text-amber-800'
+                            : 'text-slate-900'
+                        }`}
+                      >
+                        {qty}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleIncreasePantry(item)}
+                        title="הוסף יחידה"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
