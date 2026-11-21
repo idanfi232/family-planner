@@ -40,12 +40,10 @@ export default function ShoppingAndPantryTab() {
     const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
     touchStartRef.current = null;
 
-    // לוודא שמדובר בהחלקה אופקית מובהקת ולא בגלילה למעלה/למטה
     if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) {
       return;
     }
 
-    // ב-RTL: מלאי מימין, רשימת קניות משמאל
     if (deltaX < 0 && subTab === 'pantry') {
       setSubTab('shopping');
     } else if (deltaX > 0 && subTab === 'shopping') {
@@ -116,6 +114,20 @@ export default function ShoppingAndPantryTab() {
       setNewShoppingName('');
       setNewShoppingQty(1);
     }
+  };
+
+  const handleIncreaseShoppingItemQty = async (item) => {
+    await updateDoc(doc(db, 'shopping_items', item.id), {
+      quantity: (Number(item.quantity) || 1) + 1
+    });
+  };
+
+  const handleDecreaseShoppingItemQty = async (item) => {
+    const currentQty = Number(item.quantity) || 1;
+    if (currentQty <= 1) return;
+    await updateDoc(doc(db, 'shopping_items', item.id), {
+      quantity: currentQty - 1
+    });
   };
 
   const handleAddPantryItem = async (e) => {
@@ -214,7 +226,7 @@ export default function ShoppingAndPantryTab() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="mx-auto max-w-3xl space-y-4 select-none sm:select-auto"
+      className="mx-auto max-w-3xl w-full space-y-4 select-none sm:select-auto"
     >
       <datalist id="product-catalog-list">
         {catalog.map(item => (
@@ -298,8 +310,7 @@ export default function ShoppingAndPantryTab() {
 
       {subTab === 'pantry' ? (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-xs">
-          {/* אזור כותרת וחיפוש מקובע בראש בזמן גלילה */}
-          <div className="sticky top-[49px] sm:top-[61px] z-20 rounded-t-2xl border-b border-slate-200/80 bg-white/95 p-4 sm:p-5 backdrop-blur-md">
+          <div className="sticky top-[84px] sm:top-[102px] z-20 rounded-t-2xl border-b border-slate-200/80 bg-white/95 p-3.5 sm:p-5 backdrop-blur-md">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -317,39 +328,54 @@ export default function ShoppingAndPantryTab() {
               </span>
             </div>
 
-            <form onSubmit={handleAddPantryItem} className="flex gap-2">
-              <div className="relative flex-1">
+            <form onSubmit={handleAddPantryItem} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <div className="relative flex-1 min-w-0">
                 <input
                   type="text"
                   list="product-catalog-list"
                   value={newPantryName}
                   onChange={(e) => setNewPantryName(e.target.value)}
                   placeholder="חפש במלאי או הוסף מוצר חדש..."
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2 pr-3 pl-8 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50 py-2 pr-3 pl-7 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
                 />
                 {newPantryName && (
                   <button
                     type="button"
                     onClick={() => setNewPantryName('')}
                     title="נקה חיפוש"
-                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
-              <input
-                type="number"
-                min="1"
-                value={newPantryQty}
-                onChange={(e) => setNewPantryQty(e.target.value)}
-                className="w-16 rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-center text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
-                title="כמות"
-              />
+
+              <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 p-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setNewPantryQty(q => Math.max(1, (Number(q) || 1) - 1))}
+                  title="הפחת כמות להוספה"
+                  className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+                >
+                  <Minus className="h-3 w-3" />
+                </button>
+                <span className="min-w-[1.4rem] text-center text-xs sm:text-sm font-bold text-slate-900">
+                  {Math.max(1, Number(newPantryQty) || 1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewPantryQty(q => Math.max(1, Number(q) || 1) + 1)}
+                  title="הוסף כמות להוספה"
+                  className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
+
               <button
                 type="submit"
                 title="הוסף למלאי"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -371,7 +397,7 @@ export default function ShoppingAndPantryTab() {
             )}
           </div>
 
-          <div className="p-4 sm:p-5">
+          <div className="p-3.5 sm:p-5">
             {pantryItems.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
                 עדיין לא הוזנו פריטים למלאי הבית
@@ -488,7 +514,7 @@ export default function ShoppingAndPantryTab() {
           </div>
         </section>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+        <section className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -504,26 +530,42 @@ export default function ShoppingAndPantryTab() {
             </span>
           </div>
 
-          <form onSubmit={(e) => handleAddShoppingItem(e)} className="mb-3 flex gap-2">
+          <form onSubmit={(e) => handleAddShoppingItem(e)} className="mb-3 flex items-center gap-1.5 sm:gap-2 min-w-0">
             <input
               type="text"
               list="product-catalog-list"
               value={newShoppingName}
               onChange={(e) => setNewShoppingName(e.target.value)}
-              placeholder="הוסף מוצר לקנייה (או בחר מהרשימה)..."
-              className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
+              placeholder="הוסף מוצר לקנייה..."
+              className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
             />
-            <input
-              type="number"
-              min="1"
-              value={newShoppingQty}
-              onChange={(e) => setNewShoppingQty(e.target.value)}
-              className="w-16 rounded-xl border border-slate-300 bg-slate-50 px-2 py-2 text-center text-sm font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
-              title="כמות"
-            />
+
+            <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setNewShoppingQty(q => Math.max(1, (Number(q) || 1) - 1))}
+                title="הפחת כמות להוספה"
+                className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+              >
+                <Minus className="h-3 w-3" />
+              </button>
+              <span className="min-w-[1.4rem] text-center text-xs sm:text-sm font-bold text-slate-900">
+                {Math.max(1, Number(newShoppingQty) || 1)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setNewShoppingQty(q => Math.max(1, Number(q) || 1) + 1)}
+                title="הוסף כמות להוספה"
+                className="flex h-7 w-6 items-center justify-center rounded-lg text-slate-600 hover:bg-white hover:text-slate-900"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
+
             <button
               type="submit"
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              title="הוסף לרשימת קניות"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -555,34 +597,58 @@ export default function ShoppingAndPantryTab() {
             </div>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {shoppingItems.map(item => (
-                <li key={item.id} className="flex items-center justify-between gap-2 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleCompleteShoppingItem(item)}
-                      title="נקנה! העבר למלאי הבית"
-                      className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-emerald-500 bg-white text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
-                    <div>
-                      <span className="text-sm font-semibold text-slate-800">{item.name}</span>
-                      {item.quantity > 1 && (
-                        <span className="mr-2 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-bold text-blue-700">
-                          ×{item.quantity}
-                        </span>
-                      )}
+              {shoppingItems.map(item => {
+                const qty = Math.max(1, Number(item.quantity) || 1);
+                return (
+                  <li key={item.id} className="flex items-center justify-between gap-2 py-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCompleteShoppingItem(item)}
+                        title="נקנה! העבר למלאי הבית"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-white text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <span className="text-sm font-semibold text-slate-800 truncate">{item.name}</span>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteShoppingItem(item.id)}
-                    title="הסר מהרשימה"
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDecreaseShoppingItemQty(item)}
+                        disabled={qty <= 1}
+                        title={qty <= 1 ? 'כמות מינימלית 1' : 'הפחת כמות'}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+
+                      <span className="min-w-[1.75rem] text-center text-sm font-bold text-blue-700">
+                        {qty}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleIncreaseShoppingItemQty(item)}
+                        title="הוסף יחידה"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteShoppingItem(item.id)}
+                        title="הסר מהרשימה"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
