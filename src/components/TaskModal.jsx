@@ -79,6 +79,19 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
     }));
   };
 
+  const openEndTimePicker = () => {
+    const endEl = endTimeInputRef.current;
+    if (!endEl) return;
+    endEl.focus();
+    if (typeof endEl.showPicker === 'function') {
+      try {
+        endEl.showPicker();
+      } catch {
+        // במקרה שהדפדפן חוסם פתיחה אוטומטית מחוץ למחוות משתמש
+      }
+    }
+  };
+
   const handleStartTimeChange = (newStartTime) => {
     setTask((prev) => {
       const nextEndTime = !prev.end_time && newStartTime ? addOneHourToTime(newStartTime) : prev.end_time;
@@ -89,10 +102,10 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
       };
     });
 
-    if (newStartTime && endTimeInputRef.current) {
-      requestAnimationFrame(() => {
-        endTimeInputRef.current?.focus();
-      });
+    if (newStartTime) {
+      setTimeout(() => {
+        openEndTimePicker();
+      }, 80);
     }
   };
 
