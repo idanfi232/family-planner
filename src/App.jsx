@@ -361,17 +361,6 @@ export default function App() {
             </div>
 
             <div className="hidden sm:flex items-center gap-2 shrink-0">
-              {activeTab === 'schedule' && (
-                <button
-                  type="button"
-                  onClick={() => setIsQuickScheduleOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 shadow-2xs hover:bg-teal-100"
-                >
-                  <Eye className="h-4 w-4 text-teal-700" />
-                  <span>מבט מהיר</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => setIsMembersModalOpen(true)}
@@ -465,16 +454,6 @@ export default function App() {
                   </div>
 
                   <button
-                    type="button"
-                    onClick={() => setIsQuickScheduleOpen(true)}
-                    title="מבט מהיר למערכת שעות וחוגים"
-                    className="inline-flex sm:hidden items-center gap-1 rounded-xl border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
-                  >
-                    <Eye className="h-3.5 w-3.5 text-teal-700" />
-                    <span>מבט מהיר</span>
-                  </button>
-
-                  <button
                     onClick={handlePopulateWeek}
                     title="טען שגרה שבועית"
                     className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 border border-indigo-200 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
@@ -484,6 +463,7 @@ export default function App() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setShowFilters(!showFilters)}
                     className={`inline-flex items-center gap-1 rounded-xl border px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors ${
                       showFilters || activeFiltersCount > 0
@@ -541,7 +521,16 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickScheduleOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-teal-700" />
+                      <span>מבט מהיר</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setIsMembersModalOpen(true)}
