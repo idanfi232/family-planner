@@ -11,7 +11,7 @@ import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 import QuickScheduleModal from './components/QuickScheduleModal';
 
-const TELEGRAM_BOT_TOKEN = '8893421762:AAFRjIf0b-ZDf2J8kJt9xDuA17x6boKq7Xc';
+const TELEGRAM_BOT_TOKEN = '';
 const TELEGRAM_CHAT_ID = '7067275881';
 
 const getTodayStr = () => {
@@ -152,24 +152,24 @@ export default function App() {
     }
 
     if (deltaX > 0) {
-      setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0));
+      setSelectedDayIndex((prev) => (prev < 6 ? prev + 1 : 0));
     } else if (deltaX < 0) {
-      setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6));
+      setSelectedDayIndex((prev) => (prev > 0 ? prev - 1 : 6));
     }
   };
 
   useEffect(() => {
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
-      setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setTemplates(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setIsLoading(false);
     });
 
     const unsubMembers = onSnapshot(collection(db, 'members'), (snapshot) => {
-      setMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setMembers(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
@@ -188,18 +188,18 @@ export default function App() {
   const handlePopulateWeek = async () => {
     try {
       const mergedList = generateWeekSchedule(currentWeekStart, templates, events);
-      const existingIds = new Set(events.map(e => e.id));
-      const newlyCreated = mergedList.filter(e => !existingIds.has(e.id));
+      const existingIds = new Set(events.map((e) => e.id));
+      const newlyCreated = mergedList.filter((e) => !existingIds.has(e.id));
 
       if (newlyCreated.length === 0) return;
 
       const batch = writeBatch(db);
-      newlyCreated.forEach(item => {
+      newlyCreated.forEach((item) => {
         batch.set(doc(db, 'events', item.id), item);
       });
       await batch.commit();
     } catch (err) {
-      console.error("Error populating week:", err);
+      console.error('Error populating week:', err);
     }
   };
 
@@ -223,20 +223,21 @@ export default function App() {
         { merge: true }
       );
     } catch (err) {
-      console.error("Error toggling complete status:", err);
+      console.error('Error toggling complete status:', err);
     }
   };
 
   const handleSaveTask = async (savedTask, editScope) => {
     try {
-      const isNew = !events.some(e => e.id === savedTask.id);
+      const { _dateAction, _previousDate, ...cleanTask } = savedTask;
+      const isNew = !events.some((e) => e.id === cleanTask.id);
 
       if (isNew) {
-        if (savedTask.type === 'routine') {
+        if (cleanTask.type === 'routine') {
           const newTemplateId = `tpl_${Date.now()}`;
-          const newTemplate = { ...savedTask, id: newTemplateId };
+          const newTemplate = { ...cleanTask, id: newTemplateId };
           const newInstanceId = `instance_${Date.now()}`;
-          const newInstance = { ...savedTask, id: newInstanceId, template_id: newTemplateId, status: 'active' };
+          const newInstance = { ...cleanTask, id: newInstanceId, template_id: newTemplateId, status: 'active' };
 
           const batch = writeBatch(db);
           batch.set(doc(db, 'templates', newTemplateId), newTemplate);
@@ -244,31 +245,53 @@ export default function App() {
           await batch.commit();
         } else {
           const oneOffId = `oneoff_${Date.now()}`;
-          await setDoc(doc(db, 'events', oneOffId), { ...savedTask, id: oneOffId, template_id: null, status: 'active' });
+          await setDoc(doc(db, 'events', oneOffId), { ...cleanTask, id: oneOffId, template_id: null, status: 'active' });
         }
 
-        await sendTelegramNotification(savedTask, 'added');
-      } else {
-        if (savedTask.template_id && editScope === 'template') {
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'templates', savedTask.template_id), { ...savedTask, id: savedTask.template_id }, { merge: true });
+        await sendTelegramNotification(cleanTask, 'added');
+      } else if (_dateAction === 'duplicate' && _previousDate && cleanTask.date && cleanTask.date !== _previousDate) {
+        const originalEvent = events.find((e) => e.id === cleanTask.id);
+        const duplicatedId = `dup_${Date.now()}`;
+        const duplicatedEvent = {
+          ...cleanTask,
+          id: duplicatedId,
+          template_id: null,
+          is_modified: true,
+          status: 'active',
+        };
 
-          events.forEach(e => {
-            if (e.id === savedTask.id) {
-              batch.set(doc(db, 'events', e.id), { ...savedTask, is_modified: false });
-            } else if (e.template_id === savedTask.template_id && e.date >= savedTask.date && !e.is_modified) {
-              batch.set(doc(db, 'events', e.id), { ...e, ...savedTask, id: e.id, date: e.date });
+        const batch = writeBatch(db);
+        if (originalEvent) {
+          batch.set(doc(db, 'events', originalEvent.id), {
+            ...originalEvent,
+            date: _previousDate,
+          });
+        }
+        batch.set(doc(db, 'events', duplicatedId), duplicatedEvent);
+        await batch.commit();
+
+        await sendTelegramNotification(duplicatedEvent, 'added');
+      } else {
+        if (cleanTask.template_id && editScope === 'template') {
+          const batch = writeBatch(db);
+          batch.set(doc(db, 'templates', cleanTask.template_id), { ...cleanTask, id: cleanTask.template_id }, { merge: true });
+
+          events.forEach((e) => {
+            if (e.id === cleanTask.id) {
+              batch.set(doc(db, 'events', e.id), { ...cleanTask, is_modified: false });
+            } else if (e.template_id === cleanTask.template_id && e.date >= cleanTask.date && !e.is_modified) {
+              batch.set(doc(db, 'events', e.id), { ...e, ...cleanTask, id: e.id, date: e.date });
             }
           });
           await batch.commit();
         } else {
-          await setDoc(doc(db, 'events', savedTask.id), { ...savedTask, is_modified: true });
+          await setDoc(doc(db, 'events', cleanTask.id), { ...cleanTask, is_modified: true });
         }
 
-        await sendTelegramNotification(savedTask, 'modified');
+        await sendTelegramNotification(cleanTask, 'modified');
       }
     } catch (err) {
-      console.error("Error saving event:", err);
+      console.error('Error saving event:', err);
     }
   };
 
@@ -277,7 +300,7 @@ export default function App() {
       if (taskToDelete.template_id && editScope === 'template') {
         const batch = writeBatch(db);
         batch.delete(doc(db, 'templates', taskToDelete.template_id));
-        events.forEach(e => {
+        events.forEach((e) => {
           if (e.template_id === taskToDelete.template_id && e.date >= taskToDelete.date) {
             batch.delete(doc(db, 'events', e.id));
           }
@@ -287,7 +310,7 @@ export default function App() {
         await deleteDoc(doc(db, 'events', taskToDelete.id));
       }
     } catch (err) {
-      console.error("Error deleting event:", err);
+      console.error('Error deleting event:', err);
     }
   };
 
@@ -304,12 +327,12 @@ export default function App() {
     const d = new Date(currentWeekStart);
     d.setDate(d.getDate() + index);
     const dateStr = d.toISOString().split('T')[0];
-    const rawTasks = events.filter(e => e.date === dateStr);
+    const rawTasks = events.filter((e) => e.date === dateStr);
     return { ...day, dateStr, tasks: rawTasks };
   });
 
-  const weekDays = allWeekDays.map(day => {
-    const dayTasks = day.tasks.filter(e => {
+  const weekDays = allWeekDays.map((day) => {
+    const dayTasks = day.tasks.filter((e) => {
       if (selectedMemberFilter !== 'all') {
         const matchesAssignee = e.assignee === selectedMemberFilter;
         const matchesAffected = e.affected_members && e.affected_members.includes(selectedMemberFilter);
@@ -495,7 +518,7 @@ export default function App() {
                         className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
                       >
                         <option value="all">הכל</option>
-                        {EVENT_CATEGORIES.map(cat => (
+                        {EVENT_CATEGORIES.map((cat) => (
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
                       </select>
@@ -509,7 +532,7 @@ export default function App() {
                       >
                         כולם
                       </button>
-                      {members.map(member => (
+                      {members.map((member) => (
                         <button
                           key={member.id}
                           onClick={() => setSelectedMemberFilter(member.name)}
@@ -566,7 +589,7 @@ export default function App() {
             <div className="flex h-64 items-center justify-center text-sm text-slate-500">טוען נתונים מהענן...</div>
           ) : viewMode === 'week' ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-              {weekDays.map(day => (
+              {weekDays.map((day) => (
                 <DayColumn
                   key={day.dateStr}
                   dayName={day.name}
@@ -592,7 +615,7 @@ export default function App() {
               >
                 <div className="flex w-full items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
                   <button
-                    onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
+                    onClick={() => setSelectedDayIndex((prev) => (prev > 0 ? prev - 1 : 6))}
                     className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
                   >
                     <ChevronRight className="h-4 w-4" /> יום קודם
@@ -607,7 +630,7 @@ export default function App() {
                     <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
                   </div>
                   <button
-                    onClick={() => setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0))}
+                    onClick={() => setSelectedDayIndex((prev) => (prev < 6 ? prev + 1 : 0))}
                     className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
                   >
                     יום הבא <ChevronLeft className="h-4 w-4" />
@@ -637,11 +660,12 @@ export default function App() {
 
       {activeTab === 'schedule' && (
         <button
-          onClick={() => handleOpenAddModal(
-            viewMode === 'day' ? selectedDayIndex : new Date().getDay(),
-            viewMode === 'day' ? weekDays[selectedDayIndex].dateStr : currentWeekStart
-          )}
-          title="הוסף אירוע חדש"
+          onClick={() => {
+            const defaultDate = viewMode === 'day' ? weekDays[selectedDayIndex]?.dateStr || todayStr : todayStr;
+            const defaultDayIdx = defaultDate ? new Date(`${defaultDate}T00:00:00`).getDay() : new Date().getDay();
+            handleOpenAddModal(defaultDayIdx, defaultDate);
+          }}
+          title="הוסף אירוע לכל תאריך"
           className="fixed bottom-6 left-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-300 transition-transform hover:scale-105 hover:bg-blue-700 active:scale-95"
         >
           <Plus className="h-7 w-7" />

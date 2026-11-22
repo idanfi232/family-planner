@@ -1,6 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { X, Clock, MapPin, User, Users, Tag, RefreshCw, BookOpen, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Clock, MapPin, User, Users, Tag, RefreshCw, BookOpen, Plus, Trash2, Calendar, Copy, ArrowRightLeft } from 'lucide-react';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyLesson } from '../types/models';
+
+const getDayOfWeekFromDateStr = (dateStr) => {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  const [year, month, day] = parts;
+  return new Date(year, month - 1, day).getDay();
+};
+
+const addOneHourToTime = (timeStr) => {
+  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const nextHour = (h + 1) % 24;
+  return `${String(nextHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
 
 export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTask, members }) {
   const [task, setTask] = useState(() => ({
@@ -9,6 +24,9 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
     schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
   }));
   const [updateAllFuture, setUpdateAllFuture] = useState(false);
+  const [dateAction, setDateAction] = useState('move'); // 'move' | 'duplicate'
+
+  const endTimeInputRef = useRef(null);
 
   const isCustomAssignee =
     initialTask?.assignee &&
@@ -27,6 +45,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
       schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
     });
     setUpdateAllFuture(false);
+    setDateAction('move');
 
     const custom =
       initialTask?.assignee &&
@@ -37,8 +56,45 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
 
   if (!isOpen) return null;
 
+  const isExistingEvent = Boolean(initialTask?.id && initialTask?.title);
+  const originalDate = initialTask?.date || '';
+  const hasDateChanged = isExistingEvent && Boolean(task.date) && task.date !== originalDate;
+
   const isSchoolSchedule = normalizeCategory(task.category) === 'school_schedule';
   const lessons = Array.isArray(task.schedule_lessons) ? task.schedule_lessons : [];
+
+  const handleDateChange = (newDateStr) => {
+    const computedDay = getDayOfWeekFromDateStr(newDateStr);
+    setTask((prev) => ({
+      ...prev,
+      date: newDateStr,
+      day_of_week: computedDay !== null ? computedDay : prev.day_of_week,
+    }));
+  };
+
+  const handleDayOfWeekChange = (newDayIndex) => {
+    setTask((prev) => ({
+      ...prev,
+      day_of_week: newDayIndex,
+    }));
+  };
+
+  const handleStartTimeChange = (newStartTime) => {
+    setTask((prev) => {
+      const nextEndTime = !prev.end_time && newStartTime ? addOneHourToTime(newStartTime) : prev.end_time;
+      return {
+        ...prev,
+        time: newStartTime,
+        end_time: nextEndTime,
+      };
+    });
+
+    if (newStartTime && endTimeInputRef.current) {
+      requestAnimationFrame(() => {
+        endTimeInputRef.current?.focus();
+      });
+    }
+  };
 
   const handleAddLesson = () => {
     setTask((prev) => ({
@@ -81,6 +137,8 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
         category: normalizedCategory,
         assignee: finalAssignee,
         schedule_lessons: cleanedLessons,
+        _dateAction: hasDateChanged ? dateAction : 'move',
+        _previousDate: originalDate,
       },
       editScope
     );
@@ -92,7 +150,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl transition-all">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h3 className="text-xl font-bold text-slate-800">
-            {task.id && task.title ? 'עריכת אירוע' : 'הוספת אירוע חדש'}
+            {isExistingEvent ? 'עריכת אירוע' : 'הוספת אירוע חדש'}
           </h3>
           <button
             type="button"
@@ -157,30 +215,68 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
             </div>
           </div>
 
-          {task.type === 'routine' ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700">יום בשבוע</label>
-              <select
-                value={task.day_of_week}
-                onChange={(e) => setTask({ ...task, day_of_week: parseInt(e.target.value, 10) })}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-              >
-                {DAYS_OF_WEEK.map((day) => (
-                  <option key={day.id} value={day.id}>
-                    {day.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-slate-700">תאריך מדויק</label>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                <Calendar className="h-4 text-slate-400" /> תאריך
+              </label>
               <input
                 type="date"
                 value={task.date || ''}
-                onChange={(e) => setTask({ ...task, date: e.target.value })}
+                onChange={(e) => handleDateChange(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
+            </div>
+
+            {task.type === 'routine' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700">יום בשבוע (לשגרה)</label>
+                <select
+                  value={task.day_of_week}
+                  onChange={(e) => handleDayOfWeekChange(parseInt(e.target.value, 10))}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  {DAYS_OF_WEEK.map((day) => (
+                    <option key={day.id} value={day.id}>
+                      {day.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {hasDateChanged && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-3 space-y-2">
+              <div className="text-xs font-bold text-blue-950">
+                שינית את התאריך מ-{originalDate.split('-').reverse().join('/')} ל-{task.date.split('-').reverse().join('/')}. מה תרצה לעשות?
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setDateAction('move')}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                    dateAction === 'move'
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-2xs'
+                      : 'border-blue-200 bg-white text-blue-900 hover:bg-blue-100/60'
+                  }`}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  <span>רק להעביר לתאריך החדש</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateAction('duplicate')}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                    dateAction === 'duplicate'
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xs'
+                      : 'border-indigo-200 bg-white text-indigo-900 hover:bg-indigo-100/60'
+                  }`}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>לשכפל גם לתאריך החדש</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -192,7 +288,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               <input
                 type="time"
                 value={task.time || ''}
-                onChange={(e) => setTask({ ...task, time: e.target.value })}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
             </div>
@@ -201,6 +297,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                 <Clock className="h-4 text-slate-400" /> שעת סיום
               </label>
               <input
+                ref={endTimeInputRef}
                 type="time"
                 value={task.end_time || ''}
                 onChange={(e) => setTask({ ...task, end_time: e.target.value })}
@@ -400,7 +497,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
         </form>
 
         <div className="border-t bg-slate-50 px-6 py-4 rounded-b-2xl space-y-3">
-          {task.template_id && (
+          {task.template_id && dateAction === 'move' && (
             <div className="flex items-center justify-between rounded-xl bg-amber-50 p-2.5 border border-amber-200">
               <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
                 <RefreshCw className="h-4 w-4 text-amber-700 shrink-0" />
@@ -445,7 +542,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                 onClick={handleSubmit}
                 className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-blue-200 hover:bg-blue-700"
               >
-                שמור אירוע
+                {hasDateChanged && dateAction === 'duplicate' ? 'שכפל אירוע' : 'שמור אירוע'}
               </button>
             </div>
           </div>
