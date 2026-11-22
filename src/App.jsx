@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X, Eye } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { DAYS_OF_WEEK, EVENT_CATEGORIES, createEmptyTask } from './types/models';
+import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyTask } from './types/models';
 import { generateWeekSchedule } from './utils/smartMerge';
 import DayColumn from './components/DayColumn';
 import TaskModal from './components/TaskModal';
 import TaskTrackerTab from './components/TaskTrackerTab';
 import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
+import QuickScheduleModal from './components/QuickScheduleModal';
 
 const TELEGRAM_BOT_TOKEN = '';
 const TELEGRAM_CHAT_ID = '7067275881';
@@ -96,6 +97,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [isQuickScheduleOpen, setIsQuickScheduleOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
   const [headerHeight, setHeaderHeight] = useState(104);
@@ -149,7 +151,6 @@ export default function App() {
       return;
     }
 
-    // החלקה ימינה מעבירה קדימה ליום הבא; החלקה שמאלה חוזרת ליום הקודם
     if (deltaX > 0) {
       setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0));
     } else if (deltaX < 0) {
@@ -299,14 +300,16 @@ export default function App() {
     await deleteDoc(doc(db, 'members', id));
   };
 
-  const weekDays = DAYS_OF_WEEK.map((day, index) => {
+  const allWeekDays = DAYS_OF_WEEK.map((day, index) => {
     const d = new Date(currentWeekStart);
     d.setDate(d.getDate() + index);
     const dateStr = d.toISOString().split('T')[0];
+    const rawTasks = events.filter(e => e.date === dateStr);
+    return { ...day, dateStr, tasks: rawTasks };
+  });
 
-    const dayTasks = events.filter(e => {
-      if (e.date !== dateStr) return false;
-
+  const weekDays = allWeekDays.map(day => {
+    const dayTasks = day.tasks.filter(e => {
       if (selectedMemberFilter !== 'all') {
         const matchesAssignee = e.assignee === selectedMemberFilter;
         const matchesAffected = e.affected_members && e.affected_members.includes(selectedMemberFilter);
@@ -314,13 +317,13 @@ export default function App() {
       }
 
       if (selectedCategoryFilter !== 'all') {
-        if ((e.category || 'event') !== selectedCategoryFilter) return false;
+        if (normalizeCategory(e.category) !== selectedCategoryFilter) return false;
       }
 
       return true;
     });
 
-    return { ...day, dateStr, tasks: dayTasks };
+    return { ...day, tasks: dayTasks };
   });
 
   const weekEndStr = weekDays[6]?.dateStr;
@@ -357,17 +360,31 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsMembersModalOpen(true)}
-              title="ניהול משתתפים"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 shrink-0"
-            >
-              <Users className="h-4 w-4 text-blue-600" />
-              <span>משתתפים</span>
-              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">
-                {members.length}
-              </span>
-            </button>
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+              {activeTab === 'schedule' && (
+                <button
+                  type="button"
+                  onClick={() => setIsQuickScheduleOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 shadow-2xs hover:bg-teal-100"
+                >
+                  <Eye className="h-4 w-4 text-teal-700" />
+                  <span>מבט מהיר</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsMembersModalOpen(true)}
+                title="ניהול משתתפים"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
+              >
+                <Users className="h-4 w-4 text-blue-600" />
+                <span>משתתפים</span>
+                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">
+                  {members.length}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* שורה 2: טאבים ראשיים (לו"ז / משימות / קניות ומלאי) */}
@@ -446,6 +463,16 @@ export default function App() {
                       שבוע
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickScheduleOpen(true)}
+                    title="מבט מהיר למערכת שעות וחוגים"
+                    className="inline-flex sm:hidden items-center gap-1 rounded-xl border border-teal-200 bg-teal-50 px-2 py-1.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-teal-700" />
+                    <span>מבט מהיר</span>
+                  </button>
 
                   <button
                     onClick={handlePopulateWeek}
@@ -649,6 +676,14 @@ export default function App() {
         members={members}
         onAddMember={handleAddMember}
         onDeleteMember={handleDeleteMember}
+      />
+
+      <QuickScheduleModal
+        isOpen={isQuickScheduleOpen}
+        onClose={() => setIsQuickScheduleOpen(false)}
+        members={members}
+        weekDays={allWeekDays}
+        selectedMemberName={selectedMemberFilter}
       />
     </div>
   );

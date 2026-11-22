@@ -1,47 +1,100 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, MapPin, User, Users, Tag, RefreshCw } from 'lucide-react';
-import { DAYS_OF_WEEK, EVENT_CATEGORIES } from '../types/models';
+import { X, Clock, MapPin, User, Users, Tag, RefreshCw, BookOpen, Plus, Trash2 } from 'lucide-react';
+import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyLesson } from '../types/models';
 
 export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTask, members }) {
-  const [task, setTask] = useState(initialTask);
+  const [task, setTask] = useState(() => ({
+    ...initialTask,
+    category: normalizeCategory(initialTask?.category),
+    schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
+  }));
   const [updateAllFuture, setUpdateAllFuture] = useState(false);
-  
-  const isCustomAssignee = initialTask?.assignee && !members.some(m => m.name === initialTask.assignee || m.id === initialTask.assignee);
+
+  const isCustomAssignee =
+    initialTask?.assignee &&
+    !members.some((m) => m.name === initialTask.assignee || m.id === initialTask.assignee);
   const [customAssigneeText, setCustomAssigneeText] = useState(isCustomAssignee ? initialTask.assignee : '');
-  const [assigneeMode, setAssigneeMode] = useState(isCustomAssignee ? 'other' : (initialTask?.assignee || ''));
+  const [assigneeMode, setAssigneeMode] = useState(isCustomAssignee ? 'other' : initialTask?.assignee || '');
 
   useEffect(() => {
-    // סינון החוצה של שמות ישנים באנגלית או מזהים שאינם קיימים ברשימת המשתתפים הנוכחית
-    const validMembers = members.map(m => m.name);
-    const cleanedAffected = (initialTask?.affected_members || []).filter(name => validMembers.includes(name));
+    const validMembers = members.map((m) => m.name);
+    const cleanedAffected = (initialTask?.affected_members || []).filter((name) => validMembers.includes(name));
 
-    setTask({ ...initialTask, affected_members: cleanedAffected });
+    setTask({
+      ...initialTask,
+      category: normalizeCategory(initialTask?.category),
+      affected_members: cleanedAffected,
+      schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
+    });
     setUpdateAllFuture(false);
-    
-    const custom = initialTask?.assignee && !members.some(m => m.name === initialTask.assignee || m.id === initialTask.assignee);
-    setAssigneeMode(custom ? 'other' : (initialTask?.assignee || ''));
+
+    const custom =
+      initialTask?.assignee &&
+      !members.some((m) => m.name === initialTask.assignee || m.id === initialTask.assignee);
+    setAssigneeMode(custom ? 'other' : initialTask?.assignee || '');
     setCustomAssigneeText(custom ? initialTask.assignee : '');
   }, [initialTask, members]);
 
   if (!isOpen) return null;
 
+  const isSchoolSchedule = normalizeCategory(task.category) === 'school_schedule';
+  const lessons = Array.isArray(task.schedule_lessons) ? task.schedule_lessons : [];
+
+  const handleAddLesson = () => {
+    setTask((prev) => ({
+      ...prev,
+      schedule_lessons: [...(prev.schedule_lessons || []), createEmptyLesson()],
+    }));
+  };
+
+  const handleLessonChange = (lessonId, field, value) => {
+    setTask((prev) => ({
+      ...prev,
+      schedule_lessons: (prev.schedule_lessons || []).map((lesson) =>
+        lesson.id === lessonId ? { ...lesson, [field]: value } : lesson
+      ),
+    }));
+  };
+
+  const handleRemoveLesson = (lessonId) => {
+    setTask((prev) => ({
+      ...prev,
+      schedule_lessons: (prev.schedule_lessons || []).filter((lesson) => lesson.id !== lessonId),
+    }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const finalAssignee = assigneeMode === 'other' ? customAssigneeText : assigneeMode;
     const editScope = updateAllFuture ? 'template' : 'instance';
-    onSave({ ...task, assignee: finalAssignee }, editScope);
+    const normalizedCategory = normalizeCategory(task.category);
+    const cleanedLessons =
+      normalizedCategory === 'school_schedule'
+        ? (task.schedule_lessons || []).filter(
+            (l) => l.subject?.trim() || l.start_time || l.end_time || l.teacher?.trim() || l.notes?.trim()
+          )
+        : [];
+
+    onSave(
+      {
+        ...task,
+        category: normalizedCategory,
+        assignee: finalAssignee,
+        schedule_lessons: cleanedLessons,
+      },
+      editScope
+    );
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl transition-all">
-        
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h3 className="text-xl font-bold text-slate-800">
             {task.id && task.title ? 'עריכת אירוע' : 'הוספת אירוע חדש'}
           </h3>
-          <button 
+          <button
             type="button"
             onClick={onClose}
             className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -51,13 +104,12 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          
           <div>
             <label className="block text-sm font-medium text-slate-700">כותרת האירוע</label>
-            <input 
+            <input
               type="text"
               required
-              placeholder="למשל: אימון כדורגל, ארוחת ערב..."
+              placeholder="למשל: מערכת שעות טל, אימון כדורגל..."
               value={task.title}
               onChange={(e) => setTask({ ...task, title: e.target.value })}
               className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -69,20 +121,32 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                 <Tag className="h-4 text-slate-400" /> קטגוריית אירוע
               </label>
-              <select 
-                value={task.category || 'event'}
-                onChange={(e) => setTask({ ...task, category: e.target.value })}
+              <select
+                value={normalizeCategory(task.category)}
+                onChange={(e) => {
+                  const nextCat = e.target.value;
+                  setTask((prev) => ({
+                    ...prev,
+                    category: nextCat,
+                    schedule_lessons:
+                      nextCat === 'school_schedule' && (!prev.schedule_lessons || prev.schedule_lessons.length === 0)
+                        ? [createEmptyLesson()]
+                        : prev.schedule_lessons || [],
+                  }));
+                }}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               >
-                {EVENT_CATEGORIES.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                {EVENT_CATEGORIES.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700">סוג אירוע</label>
-              <select 
+              <select
                 value={task.type}
                 onChange={(e) => setTask({ ...task, type: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -96,20 +160,22 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
           {task.type === 'routine' ? (
             <div>
               <label className="block text-sm font-medium text-slate-700">יום בשבוע</label>
-              <select 
+              <select
                 value={task.day_of_week}
-                onChange={(e) => setTask({ ...task, day_of_week: parseInt(e.target.value) })}
+                onChange={(e) => setTask({ ...task, day_of_week: parseInt(e.target.value, 10) })}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               >
-                {DAYS_OF_WEEK.map(day => (
-                  <option key={day.id} value={day.id}>{day.name}</option>
+                {DAYS_OF_WEEK.map((day) => (
+                  <option key={day.id} value={day.id}>
+                    {day.name}
+                  </option>
                 ))}
               </select>
             </div>
           ) : (
             <div>
               <label className="block text-sm font-medium text-slate-700">תאריך מדויק</label>
-              <input 
+              <input
                 type="date"
                 value={task.date || ''}
                 onChange={(e) => setTask({ ...task, date: e.target.value })}
@@ -123,7 +189,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                 <Clock className="h-4 text-slate-400" /> שעת התחלה
               </label>
-              <input 
+              <input
                 type="time"
                 value={task.time || ''}
                 onChange={(e) => setTask({ ...task, time: e.target.value })}
@@ -134,7 +200,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                 <Clock className="h-4 text-slate-400" /> שעת סיום
               </label>
-              <input 
+              <input
                 type="time"
                 value={task.end_time || ''}
                 onChange={(e) => setTask({ ...task, end_time: e.target.value })}
@@ -147,9 +213,9 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
             <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
               <MapPin className="h-4 text-slate-400" /> מיקום / כתובת
             </label>
-            <input 
+            <input
               type="text"
-              placeholder="למשל: ספורטק, בית ספר..."
+              placeholder="למשל: בית ספר, ספורטק..."
               value={task.location || ''}
               onChange={(e) => setTask({ ...task, location: e.target.value })}
               className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -159,22 +225,24 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                <User className="h-4 text-slate-400" /> מי מבצע?
+                <User className="h-4 text-slate-400" /> מי מבצע / אחראי?
               </label>
-              <select 
+              <select
                 value={assigneeMode}
                 onChange={(e) => setAssigneeMode(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               >
                 <option value="">בחר מבצע...</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.name}>{member.name}</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.name}>
+                    {member.name}
+                  </option>
                 ))}
                 <option value="other">מישהו אחר...</option>
               </select>
 
               {assigneeMode === 'other' && (
-                <input 
+                <input
                   type="text"
                   required
                   placeholder="הקלד שם מבצע..."
@@ -190,7 +258,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                 <Users className="h-4 text-slate-400" /> מושפעים / משתתפים
               </label>
               <div className="mt-1.5 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 border rounded-xl">
-                {members.map(member => {
+                {members.map((member) => {
                   const isSelected = task.affected_members?.includes(member.name);
                   return (
                     <button
@@ -198,14 +266,14 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                       type="button"
                       onClick={() => {
                         const current = task.affected_members || [];
-                        const updated = isSelected 
-                          ? current.filter(name => name !== member.name)
+                        const updated = isSelected
+                          ? current.filter((name) => name !== member.name)
                           : [...current, member.name];
                         setTask({ ...task, affected_members: updated });
                       }}
                       className={`rounded-lg px-2 py-1 text-xs font-medium transition-all ${
-                        isSelected 
-                          ? 'bg-blue-600 text-white shadow-sm' 
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -217,9 +285,111 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
             </div>
           </div>
 
+          {isSchoolSchedule && (
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-teal-700" />
+                  <h4 className="text-sm font-bold text-teal-950">שיעורים במערכת ({lessons.length})</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddLesson}
+                  className="inline-flex items-center gap-1 rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700"
+                >
+                  <Plus className="h-3.5 w-3.5" /> הוסף שיעור
+                </button>
+              </div>
+
+              {lessons.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-teal-300 bg-white/80 py-4 text-center text-xs text-teal-800">
+                  אין שיעורים עדיין. לחץ על &ldquo;הוסף שיעור&rdquo; להוספת שיעור.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {lessons.map((lesson, idx) => (
+                    <div
+                      key={lesson.id}
+                      className="rounded-xl border border-teal-200 bg-white p-3 space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-teal-800">שיעור #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLesson(lesson.id)}
+                          title="הסר שיעור"
+                          className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div className="sm:col-span-1">
+                          <label className="block text-[11px] font-semibold text-slate-600">שם השיעור</label>
+                          <input
+                            type="text"
+                            placeholder="למשל: מתמטיקה"
+                            value={lesson.subject || ''}
+                            onChange={(e) => handleLessonChange(lesson.id, 'subject', e.target.value)}
+                            className="mt-0.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600">שעת התחלה</label>
+                          <input
+                            type="time"
+                            value={lesson.start_time || ''}
+                            onChange={(e) => handleLessonChange(lesson.id, 'start_time', e.target.value)}
+                            className="mt-0.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600">שעת סיום</label>
+                          <input
+                            type="time"
+                            value={lesson.end_time || ''}
+                            onChange={(e) => handleLessonChange(lesson.id, 'end_time', e.target.value)}
+                            className="mt-0.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600">שם המורה</label>
+                          <input
+                            type="text"
+                            placeholder="שם המורה..."
+                            value={lesson.teacher || ''}
+                            onChange={(e) => handleLessonChange(lesson.id, 'teacher', e.target.value)}
+                            className="mt-0.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600">הערות לשיעור</label>
+                          <input
+                            type="text"
+                            placeholder="ציוד, מבחן, תזכורת..."
+                            value={lesson.notes || ''}
+                            onChange={(e) => handleLessonChange(lesson.id, 'notes', e.target.value)}
+                            className="mt-0.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700">הערות נוספות</label>
-            <textarea 
+            <textarea
               rows="2"
               placeholder="הערות חשובות..."
               value={task.notes || ''}
@@ -229,7 +399,6 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
           </div>
         </form>
 
-        {/* חלק תחתון קבוע עם אופציית שגרה (טקסט קודם, תיבה קרוב לשמירה) וכפתורי שמירה */}
         <div className="border-t bg-slate-50 px-6 py-4 rounded-b-2xl space-y-3">
           {task.template_id && (
             <div className="flex items-center justify-between rounded-xl bg-amber-50 p-2.5 border border-amber-200">
@@ -237,7 +406,7 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                 <RefreshCw className="h-4 w-4 text-amber-700 shrink-0" />
                 <span>החל שינוי זה גם על כל הפעמים הבאות בשגרה</span>
               </div>
-              <input 
+              <input
                 type="checkbox"
                 checked={updateAllFuture}
                 onChange={(e) => setUpdateAllFuture(e.target.checked)}
@@ -259,7 +428,9 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               >
                 מחק אירוע
               </button>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
 
             <div className="flex gap-2">
               <button
@@ -279,7 +450,6 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
