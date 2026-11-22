@@ -480,11 +480,12 @@ export default function ShoppingAndPantryTab() {
                 return (
                   <li
                     key={item.id}
-                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
                   >
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    {/* שורה 1 במובייל / שמאל בדסקטופ: שם הפריט והחיווי */}
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
-                        className={`text-sm font-semibold break-words ${
+                        className={`text-sm font-semibold truncate ${
                           isOutOfStock
                             ? 'text-rose-900'
                             : isLowStock
@@ -496,73 +497,78 @@ export default function ShoppingAndPantryTab() {
                       </span>
 
                       {isOutOfStock && (
-                        <span className="inline-flex items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                        <span className="inline-flex shrink-0 items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
                           חסר
                         </span>
                       )}
 
                       {isLowStock && (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
                           <AlertTriangle className="h-3 w-3" /> מתקרב לסיום
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleAddShoppingItem(null, item.name, 1)}
-                        title="הוסף פריט לרשימת הקניות"
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                      >
-                        <ShoppingCart className="h-3 w-3" />
-                        <span>הוסף לקניות</span>
-                      </button>
+                    {/* שורה 2 במובייל / ימין בדסקטופ: שורת הפקודות האחידה */}
+                    <div className="flex items-center justify-between sm:justify-end gap-1.5 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100/80">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleAddShoppingItem(null, item.name, 1)}
+                          title="הוסף פריט לרשימת הקניות"
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                        >
+                          <ShoppingCart className="h-3 w-3" />
+                          <span>הוסף לקניות</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleLowStock(item)}
-                        title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                          item.lowStock
-                            ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
-                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
-                        }`}
-                      >
-                        <AlertTriangle className="h-3 w-3" />
-                        <span className="hidden sm:inline">{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLowStock(item)}
+                          title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                            item.lowStock
+                              ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
+                          }`}
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          <span>{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
+                        </button>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDecreasePantry(item)}
-                        disabled={qty === 0}
-                        title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleDecreasePantry(item)}
+                          disabled={qty === 0}
+                          title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
 
-                      <span
-                        className={`min-w-[2rem] text-center text-sm font-bold ${
-                          isOutOfStock
-                            ? 'text-rose-700'
-                            : isLowStock
-                            ? 'text-amber-800'
-                            : 'text-slate-900'
-                        }`}
-                      >
-                        {qty}
-                      </span>
+                        <span
+                          className={`min-w-[1.75rem] text-center text-sm font-bold ${
+                            isOutOfStock
+                              ? 'text-rose-700'
+                              : isLowStock
+                              ? 'text-amber-800'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          {qty}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={() => handleIncreasePantry(item)}
-                        title="הוסף יחידה"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleIncreasePantry(item)}
+                          title="הוסף יחידה"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );
