@@ -55,7 +55,7 @@ const sendTelegramNotification = async (task, actionType) => {
     : `עודכן האירוע: *${task.title}*`;
 
   const timeLine = task.time
-    ? `\n🕒 שעה: ${task.end_time ? `${task.time} -${task.end_time}` : task.time}`
+    ? `\n🕒 שעה: ${task.end_time ? `${task.time} - ${task.end_time}` : task.time}`
     : '';
 
   const assigneeLine = task.assignee
@@ -98,9 +98,31 @@ export default function App() {
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
+  const [headerHeight, setHeaderHeight] = useState(104);
+  const headerRef = useRef(null);
   const dayTouchStartRef = useRef(null);
 
   const todayStr = getTodayStr();
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      setHeaderHeight(Math.round(el.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, [activeTab, showFilters]);
 
   const handleDayTouchStart = (e) => {
     if (activeTab !== 'schedule' || viewMode !== 'day') return;
@@ -307,7 +329,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 pb-24">
-      <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 shadow-2xs backdrop-blur-md">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 shadow-2xs backdrop-blur-md"
+      >
         <div className="mx-auto max-w-7xl px-3 pt-2.5 pb-2 sm:px-6 sm:pt-3.5 sm:pb-2.5">
 
           {/* שורה 1: כותרת המערכת המשפחתית מעוצבת */}
@@ -545,28 +570,33 @@ export default function App() {
               onTouchEnd={handleDayTouchEnd}
               className="max-w-xl mx-auto select-none sm:select-auto"
             >
-              <div className="sticky top-[88px] sm:top-[108px] z-20 flex items-center justify-between mb-3 bg-white/95 p-3 rounded-2xl border border-slate-200 shadow-xs backdrop-blur-md">
-                <button
-                  onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
-                  className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
-                >
-                  <ChevronRight className="h-4 w-4" /> יום קודם
-                </button>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
-                    {weekDays[selectedDayIndex].dateStr === todayStr && (
-                      <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">היום</span>
-                    )}
+              <div
+                style={{ top: `${headerHeight}px` }}
+                className="sticky z-20 flex items-center justify-between mb-3 bg-slate-50/95 pt-1.5 pb-1.5 backdrop-blur-md"
+              >
+                <div className="flex w-full items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+                  <button
+                    onClick={() => setSelectedDayIndex(prev => (prev > 0 ? prev - 1 : 6))}
+                    className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                  >
+                    <ChevronRight className="h-4 w-4" /> יום קודם
+                  </button>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
+                      {weekDays[selectedDayIndex].dateStr === todayStr && (
+                        <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">היום</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
                   </div>
-                  <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
+                  <button
+                    onClick={() => setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0))}
+                    className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                  >
+                    יום הבא <ChevronLeft className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedDayIndex(prev => (prev < 6 ? prev + 1 : 0))}
-                  className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
-                >
-                  יום הבא <ChevronLeft className="h-4 w-4" />
-                </button>
               </div>
 
               <DayColumn
