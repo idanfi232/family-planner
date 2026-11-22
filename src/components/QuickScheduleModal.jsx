@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, BookOpen, Sparkles, Clock } from 'lucide-react';
-import { DAYS_OF_WEEK, normalizeCategory } from '../types/models';
+import { X, BookOpen, Sparkles, Clock, Calendar } from 'lucide-react';
+import { EVENT_CATEGORIES, normalizeCategory } from '../types/models';
 
 export default function QuickScheduleModal({ isOpen, onClose, members, weekDays, selectedMemberName }) {
   const [activeMember, setActiveMember] = useState(selectedMemberName || '');
@@ -14,6 +14,11 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
       setActiveMember('');
     }
   }, [selectedMemberName, members, isOpen]);
+
+  const getCategoryName = (catId) => {
+    const normalized = normalizeCategory(catId);
+    return EVENT_CATEGORIES.find((c) => c.id === normalized)?.name || 'אירוע';
+  };
 
   const weeklyByDay = useMemo(() => {
     return weekDays.map((day) => {
@@ -42,10 +47,18 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
         .filter((item) => normalizeCategory(item.category) === 'class')
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
+      const otherEvents = dayTasks
+        .filter((item) => {
+          const cat = normalizeCategory(item.category);
+          return cat !== 'school_schedule' && cat !== 'class';
+        })
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
       return {
         ...day,
         lessons,
         classes,
+        otherEvents,
       };
     });
   }, [weekDays, activeMember]);
@@ -54,11 +67,11 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900">מבט מהיר — מערכת שעות וחוגים</h3>
-            <p className="text-xs text-slate-500">תצוגה שבועית לפי משתתף/ילד</p>
+            <h3 className="text-lg sm:text-xl font-bold text-slate-900">מבט מהיר — מערכת שעות, חוגים ואירועים</h3>
+            <p className="text-xs text-slate-500">תצוגה שבועית מלאה לפי משתתף/ילד</p>
           </div>
           <button
             type="button"
@@ -99,7 +112,9 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {weeklyByDay.map((day) => {
-              const hasContent = day.lessons.length > 0 || day.classes.length > 0;
+              const hasContent =
+                day.lessons.length > 0 || day.classes.length > 0 || day.otherEvents.length > 0;
+
               return (
                 <div
                   key={day.dateStr}
@@ -113,7 +128,7 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
                   </div>
 
                   {!hasContent ? (
-                    <div className="py-4 text-center text-xs text-slate-400">אין שיעורים או חוגים</div>
+                    <div className="py-4 text-center text-xs text-slate-400">אין שיעורים, חוגים או אירועים</div>
                   ) : (
                     <>
                       {day.lessons.length > 0 && (
@@ -175,6 +190,44 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
                                 </div>
                                 {cls.location && (
                                   <div className="mt-0.5 text-[11px] text-indigo-800/80">{cls.location}</div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {day.otherEvents.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700">
+                            <Calendar className="h-3.5 w-3.5 text-amber-600" />
+                            <span>אירועים נוספים ({day.otherEvents.length})</span>
+                          </div>
+                          <ul className="space-y-1.5">
+                            {day.otherEvents.map((ev) => (
+                              <li
+                                key={ev.id}
+                                className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-2xs"
+                              >
+                                <div className="flex items-center justify-between gap-1 font-bold text-slate-800">
+                                  <span className="truncate">{ev.title}</span>
+                                  {(ev.time || ev.end_time) && (
+                                    <span className="text-[11px] font-semibold text-slate-600 shrink-0">
+                                      {ev.time}
+                                      {ev.end_time ? `-${ev.end_time}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                                    {getCategoryName(ev.category)}
+                                  </span>
+                                  {ev.location && <span className="truncate">{ev.location}</span>}
+                                </div>
+                                {ev.notes && (
+                                  <div className="mt-1 text-[11px] text-slate-600 bg-slate-50 rounded-md px-1.5 py-0.5">
+                                    {ev.notes}
+                                  </div>
                                 )}
                               </li>
                             ))}
