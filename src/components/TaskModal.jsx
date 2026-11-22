@@ -295,14 +295,9 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                  <Clock className="h-4 text-blue-600" /> שעת התחלה
-                </label>
-                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700 border border-blue-200">
-                  התחלה: {task.time || '--:--'}
-                </span>
-              </div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                <Clock className="h-4 text-slate-400" /> שעת התחלה
+              </label>
               <input
                 type="time"
                 value={task.time || ''}
@@ -310,16 +305,10 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
             </div>
-
             <div>
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                  <Clock className="h-4 text-indigo-600" /> שעת סיום
-                </label>
-                <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 border border-indigo-200">
-                  סיום: {task.end_time || '--:--'}
-                </span>
-              </div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                <Clock className="h-4 text-slate-400" /> שעת סיום
+              </label>
               <input
                 ref={endTimeInputRef}
                 type="time"
