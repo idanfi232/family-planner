@@ -24,9 +24,7 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
     return weekDays.map((day) => {
       const dayTasks = (day.tasks || []).filter((item) => {
         if (!activeMember) return true;
-        const isAssignee = item.assignee === activeMember;
-        const isAffected = Array.isArray(item.affected_members) && item.affected_members.includes(activeMember);
-        return isAssignee || isAffected;
+        return item.assignee === activeMember;
       });
 
       const lessons = [];
@@ -71,7 +69,7 @@ export default function QuickScheduleModal({ isOpen, onClose, members, weekDays,
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h3 className="text-lg sm:text-xl font-bold text-slate-900">מבט מהיר — מערכת שעות, חוגים ואירועים</h3>
-            <p className="text-xs text-slate-500">תצוגה שבועית מלאה לפי משתתף/ילד</p>
+            <p className="text-xs text-slate-500">תצוגה שבועית מלאה לפי משתתף/ילד (אחראי)</p>
           </div>
           <button
             type="button"
