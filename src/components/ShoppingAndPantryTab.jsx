@@ -3,6 +3,8 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'fireb
 import { db } from '../firebase';
 import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X } from 'lucide-react';
 
+const normalizeItemName = (name = '') => name.trim().toLowerCase().replace(/\s+/g, ' ');
+
 export default function ShoppingAndPantryTab() {
   const [subTab, setSubTab] = useState('pantry'); // 'pantry' (ברירת מחדל) | 'shopping'
 
@@ -15,6 +17,7 @@ export default function ShoppingAndPantryTab() {
 
   const [newPantryName, setNewPantryName] = useState('');
   const [newPantryQty, setNewPantryQty] = useState(1);
+  const [pantryError, setPantryError] = useState('');
 
   const [restockPrompt, setRestockPrompt] = useState(null);
 
@@ -80,7 +83,7 @@ export default function ShoppingAndPantryTab() {
   const saveToCatalog = async (rawName) => {
     const cleanName = rawName.trim();
     if (!cleanName) return;
-    const exists = catalog.some(c => c.name.toLowerCase() === cleanName.toLowerCase());
+    const exists = catalog.some(c => normalizeItemName(c.name) === normalizeItemName(cleanName));
     if (!exists) {
       const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       await setDoc(doc(db, 'product_catalog', id), { id, name: cleanName });
@@ -95,7 +98,7 @@ export default function ShoppingAndPantryTab() {
 
     await saveToCatalog(name);
 
-    const existing = shoppingItems.find(item => item.name.toLowerCase() === name.toLowerCase());
+    const existing = shoppingItems.find(item => normalizeItemName(item.name) === normalizeItemName(name));
     if (existing) {
       await updateDoc(doc(db, 'shopping_items', existing.id), {
         quantity: (existing.quantity || 1) + qty
@@ -132,28 +135,26 @@ export default function ShoppingAndPantryTab() {
 
   const handleAddPantryItem = async (e) => {
     e.preventDefault();
+    setPantryError('');
     const name = newPantryName.trim();
     const qty = Math.max(1, Number(newPantryQty) || 1);
     if (!name) return;
 
+    const existing = pantryItems.find(item => normalizeItemName(item.name) === normalizeItemName(name));
+    if (existing) {
+      setPantryError(`הפריט "${existing.name}" כבר קיים במלאי — לא ניתן להוסיף כפילות.`);
+      return;
+    }
+
     await saveToCatalog(name);
 
-    const existing = pantryItems.find(item => item.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-      const nextQty = (Number(existing.quantity) || 0) + qty;
-      await updateDoc(doc(db, 'pantry_items', existing.id), {
-        quantity: nextQty,
-        ...(nextQty > 0 ? { lowStock: false } : {})
-      });
-    } else {
-      const id = `pantry_${Date.now()}`;
-      await setDoc(doc(db, 'pantry_items', id), {
-        id,
-        name,
-        quantity: qty,
-        lowStock: false
-      });
-    }
+    const id = `pantry_${Date.now()}`;
+    await setDoc(doc(db, 'pantry_items', id), {
+      id,
+      name,
+      quantity: qty,
+      lowStock: false
+    });
 
     setNewPantryName('');
     setNewPantryQty(1);
@@ -186,7 +187,7 @@ export default function ShoppingAndPantryTab() {
   const handleCompleteShoppingItem = async (shopItem) => {
     const boughtQty = Number(shopItem.quantity) || 1;
     const existingPantry = pantryItems.find(
-      p => p.name.toLowerCase() === shopItem.name.toLowerCase()
+      p => normalizeItemName(p.name) === normalizeItemName(shopItem.name)
     );
 
     if (existingPantry) {
@@ -330,14 +331,20 @@ export default function ShoppingAndPantryTab() {
                   type="text"
                   list="product-catalog-list"
                   value={newPantryName}
-                  onChange={(e) => setNewPantryName(e.target.value)}
+                  onChange={(e) => {
+                    setNewPantryName(e.target.value);
+                    if (pantryError) setPantryError('');
+                  }}
                   placeholder="חפש במלאי או הוסף מוצר חדש..."
                   className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50 py-2 pr-3 pl-7 text-sm text-slate-900 focus:border-emerald-500 focus:bg-white focus:outline-none"
                 />
                 {newPantryName && (
                   <button
                     type="button"
-                    onClick={() => setNewPantryName('')}
+                    onClick={() => {
+                      setNewPantryName('');
+                      if (pantryError) setPantryError('');
+                    }}
                     title="נקה חיפוש"
                     className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
                   >
@@ -377,6 +384,16 @@ export default function ShoppingAndPantryTab() {
               </button>
             </form>
 
+            {pantryError && (
+              <div
+                role="alert"
+                className="mt-2.5 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+              >
+                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{pantryError}</span>
+              </div>
+            )}
+
             {pantryFilterQuery && (
               <div className="mt-2.5 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-1.5 text-[11px] text-slate-600 border border-slate-200/80">
                 <span>
@@ -384,7 +401,10 @@ export default function ShoppingAndPantryTab() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setNewPantryName('')}
+                  onClick={() => {
+                    setNewPantryName('');
+                    if (pantryError) setPantryError('');
+                  }}
                   className="font-semibold text-emerald-700 hover:underline"
                 >
                   הצג הכל

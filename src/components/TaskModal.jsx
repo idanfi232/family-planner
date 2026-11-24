@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Clock, MapPin, User, Users, Tag, RefreshCw, BookOpen, Plus, Trash2, Calendar, Copy, ArrowRightLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Clock, MapPin, User, Tag, RefreshCw, BookOpen, Plus, Trash2, Calendar, Copy, ArrowRightLeft } from 'lucide-react';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyLesson } from '../types/models';
 
 const getDayOfWeekFromDateStr = (dateStr) => {
@@ -10,23 +10,17 @@ const getDayOfWeekFromDateStr = (dateStr) => {
   return new Date(year, month - 1, day).getDay();
 };
 
-const addOneHourToTime = (timeStr) => {
-  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return '';
-  const [h, m] = timeStr.split(':').map(Number);
-  const nextHour = (h + 1) % 24;
-  return `${String(nextHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-
 export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTask, members }) {
-  const [task, setTask] = useState(() => ({
-    ...initialTask,
-    category: normalizeCategory(initialTask?.category),
-    schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
-  }));
+  const [task, setTask] = useState(() => {
+    const { affected_members: _ignored, ...rest } = initialTask || {};
+    return {
+      ...rest,
+      category: normalizeCategory(initialTask?.category),
+      schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
+    };
+  });
   const [updateAllFuture, setUpdateAllFuture] = useState(false);
-  const [dateAction, setDateAction] = useState('move'); // 'move' | 'duplicate'
-
-  const endTimeInputRef = useRef(null);
+  const [dateAction, setDateAction] = useState('move');
 
   const isCustomAssignee =
     initialTask?.assignee &&
@@ -35,13 +29,10 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
   const [assigneeMode, setAssigneeMode] = useState(isCustomAssignee ? 'other' : initialTask?.assignee || '');
 
   useEffect(() => {
-    const validMembers = members.map((m) => m.name);
-    const cleanedAffected = (initialTask?.affected_members || []).filter((name) => validMembers.includes(name));
-
+    const { affected_members: _ignored, ...restTask } = initialTask || {};
     setTask({
-      ...initialTask,
+      ...restTask,
       category: normalizeCategory(initialTask?.category),
-      affected_members: cleanedAffected,
       schedule_lessons: Array.isArray(initialTask?.schedule_lessons) ? initialTask.schedule_lessons : [],
     });
     setUpdateAllFuture(false);
@@ -77,36 +68,6 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
       ...prev,
       day_of_week: newDayIndex,
     }));
-  };
-
-  const openEndTimePicker = () => {
-    const endEl = endTimeInputRef.current;
-    if (!endEl) return;
-    endEl.focus();
-    if (typeof endEl.showPicker === 'function') {
-      try {
-        endEl.showPicker();
-      } catch {
-        // במקרה שהדפדפן חוסם פתיחה אוטומטית מחוץ למחוות משתמש
-      }
-    }
-  };
-
-  const handleStartTimeChange = (newStartTime) => {
-    setTask((prev) => {
-      const nextEndTime = !prev.end_time && newStartTime ? addOneHourToTime(newStartTime) : prev.end_time;
-      return {
-        ...prev,
-        time: newStartTime,
-        end_time: nextEndTime,
-      };
-    });
-
-    if (newStartTime) {
-      setTimeout(() => {
-        openEndTimePicker();
-      }, 80);
-    }
   };
 
   const handleAddLesson = () => {
@@ -300,18 +261,22 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
               </label>
               <input
                 type="time"
+                aria-label="שעת התחלה"
+                title="שעת התחלה"
                 value={task.time || ''}
-                onChange={(e) => handleStartTimeChange(e.target.value)}
+                onChange={(e) => setTask({ ...task, time: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
             </div>
+
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                 <Clock className="h-4 text-slate-400" /> שעת סיום
               </label>
               <input
-                ref={endTimeInputRef}
                 type="time"
+                aria-label="שעת סיום"
+                title="שעת סיום"
                 value={task.end_time || ''}
                 onChange={(e) => setTask({ ...task, end_time: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -332,67 +297,34 @@ export default function TaskModal({ isOpen, onClose, onSave, onDelete, initialTa
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                <User className="h-4 text-slate-400" /> מי מבצע / אחראי?
-              </label>
-              <select
-                value={assigneeMode}
-                onChange={(e) => setAssigneeMode(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="">בחר מבצע...</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.name}>
-                    {member.name}
-                  </option>
-                ))}
-                <option value="other">מישהו אחר...</option>
-              </select>
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <User className="h-4 text-slate-400" /> מי מבצע / אחראי?
+            </label>
+            <select
+              value={assigneeMode}
+              onChange={(e) => setAssigneeMode(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">בחר מבצע...</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
+              <option value="other">מישהו אחר...</option>
+            </select>
 
-              {assigneeMode === 'other' && (
-                <input
-                  type="text"
-                  required
-                  placeholder="הקלד שם מבצע..."
-                  value={customAssigneeText}
-                  onChange={(e) => setCustomAssigneeText(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                <Users className="h-4 text-slate-400" /> מושפעים / משתתפים
-              </label>
-              <div className="mt-1.5 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 border rounded-xl">
-                {members.map((member) => {
-                  const isSelected = task.affected_members?.includes(member.name);
-                  return (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => {
-                        const current = task.affected_members || [];
-                        const updated = isSelected
-                          ? current.filter((name) => name !== member.name)
-                          : [...current, member.name];
-                        setTask({ ...task, affected_members: updated });
-                      }}
-                      className={`rounded-lg px-2 py-1 text-xs font-medium transition-all ${
-                        isSelected
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {member.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {assigneeMode === 'other' && (
+              <input
+                type="text"
+                required
+                placeholder="הקלד שם מבצע..."
+                value={customAssigneeText}
+                onChange={(e) => setCustomAssigneeText(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            )}
           </div>
 
           {isSchoolSchedule && (

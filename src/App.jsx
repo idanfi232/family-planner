@@ -343,10 +343,10 @@ export default function App() {
 
   const weekDays = allWeekDays.map((day) => {
     const dayTasks = day.tasks.filter((e) => {
+      if (e.status === 'cancelled') return false;
+
       if (selectedMemberFilter !== 'all') {
-        const matchesAssignee = e.assignee === selectedMemberFilter;
-        const matchesAffected = e.affected_members && e.affected_members.includes(selectedMemberFilter);
-        if (!matchesAssignee && !matchesAffected) return false;
+        if (e.assignee !== selectedMemberFilter) return false;
       }
 
       if (selectedCategoryFilter !== 'all') {
@@ -707,6 +707,8 @@ export default function App() {
         members={members}
         weekDays={allWeekDays}
         selectedMemberName={selectedMemberFilter}
+        templates={templates}
+        allEvents={events}
       />
     </div>
   );
