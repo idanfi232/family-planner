@@ -251,12 +251,16 @@ export default function App() {
         await sendTelegramNotification(cleanTask, 'added');
       } else if (_dateAction === 'duplicate' && _previousDate && cleanTask.date && cleanTask.date !== _previousDate) {
         const originalEvent = events.find((e) => e.id === cleanTask.id);
-        const duplicatedId = `dup_${Date.now()}`;
+        const now = Date.now();
+        const duplicatedId = `dup_${now}`;
+        const isRoutine = cleanTask.type === 'routine';
+        const dupTemplateId = isRoutine ? `tpl_dup_${now}` : null;
+
         const duplicatedEvent = {
           ...cleanTask,
           id: duplicatedId,
-          template_id: null,
-          is_modified: true,
+          template_id: dupTemplateId,
+          is_modified: false,
           status: 'active',
         };
 
@@ -265,6 +269,12 @@ export default function App() {
           batch.set(doc(db, 'events', originalEvent.id), {
             ...originalEvent,
             date: _previousDate,
+          });
+        }
+        if (isRoutine && dupTemplateId) {
+          batch.set(doc(db, 'templates', dupTemplateId), {
+            ...duplicatedEvent,
+            id: dupTemplateId,
           });
         }
         batch.set(doc(db, 'events', duplicatedId), duplicatedEvent);
