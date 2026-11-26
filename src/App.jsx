@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X, Eye } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, Shield, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X, Eye } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyTask } from './types/models';
@@ -8,6 +8,7 @@ import DayColumn from './components/DayColumn';
 import TaskModal from './components/TaskModal';
 import TaskTrackerTab from './components/TaskTrackerTab';
 import ShoppingAndPantryTab from './components/ShoppingAndPantryTab';
+import PersonalAssetsTab from './components/PersonalAssetsTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 import QuickScheduleModal from './components/QuickScheduleModal';
 
@@ -409,13 +410,13 @@ export default function App() {
             </div>
           </div>
 
-          {/* שורה 2: טאבים ראשיים (לו"ז / משימות / קניות ומלאי) */}
+          {/* שורה 2: טאבים ראשיים (לו"ז / משימות / קניות ומלאי / נכסים) */}
           <nav aria-label="ניווט ראשי" className="mt-2.5">
-            <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
+            <div className="grid grid-cols-4 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setActiveTab('schedule')}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                className={`flex items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11px] sm:text-sm font-bold whitespace-nowrap transition-all ${
                   activeTab === 'schedule'
                     ? 'bg-white text-blue-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -427,7 +428,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveTab('todos')}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                className={`flex items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11px] sm:text-sm font-bold whitespace-nowrap transition-all ${
                   activeTab === 'todos'
                     ? 'bg-white text-indigo-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -439,7 +440,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveTab('shopping')}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                className={`flex items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11px] sm:text-sm font-bold whitespace-nowrap transition-all ${
                   activeTab === 'shopping'
                     ? 'bg-white text-emerald-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -447,6 +448,18 @@ export default function App() {
               >
                 <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                 <span>קניות ומלאי</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('assets')}
+                className={`flex items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11px] sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  activeTab === 'assets'
+                    ? 'bg-white text-violet-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span>נכסים</span>
               </button>
             </div>
           </nav>
@@ -663,8 +676,10 @@ export default function App() {
           )
         ) : activeTab === 'todos' ? (
           <TaskTrackerTab members={members} />
-        ) : (
+        ) : activeTab === 'shopping' ? (
           <ShoppingAndPantryTab />
+        ) : (
+          <PersonalAssetsTab members={members} />
         )}
       </main>
 
