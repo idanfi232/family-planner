@@ -1,15 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-// הדבק כאן את האובייקט שקיבלת מ-Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSyDDEFBW0PWYhNiRz1HEUvgq6JJ9YmRXlKs",
-  authDomain: "family-planner-b41cd.firebaseapp.com",
-  projectId: "family-planner-b41cd",
-  storageBucket: "family-planner-b41cd.firebasestorage.app",
-  messagingSenderId: "1050195747665",
-  appId: "1:1050195747665:web:3107076ba66b3cb0bca970"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });

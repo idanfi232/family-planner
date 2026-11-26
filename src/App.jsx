@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, Shield, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X, Eye } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckSquare, ShoppingCart, Shield, ChevronRight, ChevronLeft, CopyPlus, Filter, Plus, Cloud, Users, Tag, X, Eye, LogOut } from 'lucide-react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db } from './firebase';
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { db, auth, googleProvider } from './firebase';
 import { DAYS_OF_WEEK, EVENT_CATEGORIES, normalizeCategory, createEmptyTask } from './types/models';
 import { generateWeekSchedule } from './utils/smartMerge';
 import DayColumn from './components/DayColumn';
@@ -12,8 +13,13 @@ import PersonalAssetsTab from './components/PersonalAssetsTab';
 import MembersSettingsModal from './components/MembersSettingsModal';
 import QuickScheduleModal from './components/QuickScheduleModal';
 
-const TELEGRAM_BOT_TOKEN = '';
-const TELEGRAM_CHAT_ID = '7067275881';
+const AUTHORIZED_EMAILS = (import.meta.env.VITE_AUTHORIZED_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+const TELEGRAM_BOT_TOKEN = (import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '').trim();
+const TELEGRAM_CHAT_ID = (import.meta.env.VITE_TELEGRAM_CHAT_ID || '').trim();
 
 const getTodayStr = () => {
   const now = new Date();
@@ -32,6 +38,7 @@ const getSundayOfWeek = (date) => {
 };
 
 const sendTelegramNotification = async (task, actionType) => {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
   if (!task || !task.date) return;
 
   const todaySundayStr = getSundayOfWeek(new Date());
@@ -82,6 +89,11 @@ const sendTelegramNotification = async (task, actionType) => {
 };
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authError, setAuthError] = useState('');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
   const [activeTab, setActiveTab] = useState('schedule');
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getSundayOfWeek(new Date()));
   const [templates, setTemplates] = useState([]);
@@ -107,6 +119,48 @@ export default function App() {
 
   const todayStr = getTodayStr();
 
+  const isAuthorizedUser = Boolean(
+    user?.email && AUTHORIZED_EMAILS.includes(user.email.trim().toLowerCase())
+  );
+
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthChecking(false);
+      if (currentUser && currentUser.email) {
+        const allowed = AUTHORIZED_EMAILS.includes(currentUser.email.trim().toLowerCase());
+        setAuthError(allowed ? '' : `החשבון ${currentUser.email} אינו מורשה לגשת למערכת.`);
+      } else {
+        setAuthError('');
+      }
+    });
+
+    return () => unsubAuth();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setAuthError('');
+    setIsSigningIn(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        console.error('Google sign-in error:', err);
+        setAuthError('ההתחברות עם Google נכשלה. נסה שוב.');
+      }
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Sign-out error:', err);
+    }
+  };
+
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -125,7 +179,7 @@ export default function App() {
 
     window.addEventListener('resize', updateHeight);
     return () => window.removeEventListener('resize', updateHeight);
-  }, [activeTab, showFilters]);
+  }, [activeTab, showFilters, isAuthorizedUser]);
 
   const handleDayTouchStart = (e) => {
     if (activeTab !== 'schedule' || viewMode !== 'day') return;
@@ -160,13 +214,27 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isAuthorizedUser) {
+      setTemplates([]);
+      setEvents([]);
+      setMembers([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    let loadedEvents = false;
+
     const unsubTemplates = onSnapshot(collection(db, 'templates'), (snapshot) => {
       setTemplates(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
       setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      setIsLoading(false);
+      if (!loadedEvents) {
+        loadedEvents = true;
+        setIsLoading(false);
+      }
     });
 
     const unsubMembers = onSnapshot(collection(db, 'members'), (snapshot) => {
@@ -178,7 +246,61 @@ export default function App() {
       unsubEvents();
       unsubMembers();
     };
-  }, []);
+  }, [isAuthorizedUser]);
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-medium text-slate-500">
+        בודק התחברות...
+      </div>
+    );
+  }
+
+  if (!isAuthorizedUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-lg text-center space-y-5">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 border border-blue-200">
+            <Shield className="h-6 w-6" />
+          </div>
+
+          <div className="space-y-1">
+            <h1 className="text-xl font-extrabold text-slate-900">המערכת המשפחתית</h1>
+            <p className="text-xs text-slate-500">
+              התחבר עם חשבון Google המורשה כדי לגשת ללו״ז, למשימות ולנכסים.
+            </p>
+          </div>
+
+          {authError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700">
+              {authError}
+            </div>
+          )}
+
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              disabled={isSigningIn}
+              onClick={handleGoogleSignIn}
+              className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isSigningIn ? 'מתחבר...' : 'התחבר עם Google'}
+            </button>
+
+            {user && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                התנתק מ-{user.email}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const changeWeek = (offsetWeeks) => {
     const d = new Date(currentWeekStart);
@@ -394,12 +516,12 @@ export default function App() {
               </div>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsMembersModalOpen(true)}
                 title="ניהול משתתפים"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
               >
                 <Users className="h-4 w-4 text-blue-600" />
                 <span>משתתפים</span>
@@ -407,10 +529,20 @@ export default function App() {
                   {members.length}
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                title={`התנתק (${user?.email || ''})`}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">התנתק</span>
+              </button>
             </div>
           </div>
 
-          {/* שורה 2: טאבים ראשיים (לו"ז / משימות / קניות ומלאי / נכסים) */}
+          {/* שורה 2: טאבים ראשיים */}
           <nav aria-label="ניווט ראשי" className="mt-2.5">
             <div className="grid grid-cols-4 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1">
               <button
