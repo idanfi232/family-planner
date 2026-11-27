@@ -1,9 +1,31 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X, CheckCircle2, Tag, FolderPlus } from 'lucide-react';
+
+const GENERAL_CATEGORY = 'כללי';
+
+const DEFAULT_CATEGORIES = [
+  'ירקות ופירות',
+  'חלב, ביצים ומעדנייה',
+  'בשר, עוף ודגים',
+  'מאפים ולחם',
+  'יבשים, פסטה ושימורים',
+  'חטיפים, ממתקים ודגני בוקר',
+  'משקאות',
+  'קפואים',
+  'ניקיון וכביסה',
+  'פארם, תינוקות ובעלי חיים',
+  GENERAL_CATEGORY,
+];
 
 const normalizeItemName = (name = '') => name.trim().toLowerCase().replace(/\s+/g, ' ');
+
+const normalizeCategoryName = (cat = '') => {
+  const clean = String(cat || '').trim().replace(/\s+/g, ' ');
+  if (!clean || clean === 'כללי / אחר') return GENERAL_CATEGORY;
+  return clean;
+};
 
 export default function ShoppingAndPantryTab() {
   const [subTab, setSubTab] = useState('pantry'); // 'pantry' (ברירת מחדל) | 'shopping'
@@ -11,6 +33,7 @@ export default function ShoppingAndPantryTab() {
   const [pantryItems, setPantryItems] = useState([]);
   const [shoppingItems, setShoppingItems] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [customCategories, setCustomCategories] = useState([]);
 
   const [newShoppingName, setNewShoppingName] = useState('');
   const [newShoppingQty, setNewShoppingQty] = useState(1);
@@ -21,6 +44,11 @@ export default function ShoppingAndPantryTab() {
 
   const [restockPrompt, setRestockPrompt] = useState(null);
   const [addedToast, setAddedToast] = useState(null);
+
+  // ניהול פריט פתוח להצגת שם מלא + בחירה/הוספת קטגוריה
+  const [expandedItemKey, setExpandedItemKey] = useState(null);
+  const [newCategoryDraft, setNewCategoryDraft] = useState('');
+  const [creatingCategoryForKey, setCreatingCategoryForKey] = useState(null);
 
   // מעקב אחר נקודת התחלה של החלקה (Swipe) במובייל
   const touchStartRef = useRef(null);
@@ -72,52 +100,164 @@ export default function ShoppingAndPantryTab() {
 
   useEffect(() => {
     const unsubPantry = onSnapshot(collection(db, 'pantry_items'), (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          category: normalizeCategoryName(data.category),
+        };
+      });
       list.sort((a, b) => a.name.localeCompare(b.name, 'he'));
       setPantryItems(list);
     });
 
     const unsubShopping = onSnapshot(collection(db, 'shopping_items'), (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          category: normalizeCategoryName(data.category),
+        };
+      });
       list.sort((a, b) => a.name.localeCompare(b.name, 'he'));
       setShoppingItems(list);
     });
 
     const unsubCatalog = onSnapshot(collection(db, 'product_catalog'), (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          category: normalizeCategoryName(data.category),
+        };
+      });
       list.sort((a, b) => a.name.localeCompare(b.name, 'he'));
       setCatalog(list);
+    });
+
+    const unsubCategories = onSnapshot(collection(db, 'product_categories'), (snap) => {
+      const names = snap.docs
+        .map(d => normalizeCategoryName(d.data()?.name || d.id))
+        .filter(Boolean);
+      setCustomCategories(Array.from(new Set(names)));
     });
 
     return () => {
       unsubPantry();
       unsubShopping();
       unsubCatalog();
+      unsubCategories();
     };
   }, []);
 
-  const saveToCatalog = async (rawName) => {
+  const allCategories = useMemo(() => {
+    const baseWithoutGeneral = DEFAULT_CATEGORIES.filter(c => c !== GENERAL_CATEGORY);
+    const extras = new Set([
+      ...customCategories,
+      ...pantryItems.map(i => normalizeCategoryName(i.category)),
+      ...shoppingItems.map(i => normalizeCategoryName(i.category)),
+      ...catalog.map(i => normalizeCategoryName(i.category)),
+    ]);
+
+    extras.delete(GENERAL_CATEGORY);
+    baseWithoutGeneral.forEach(c => extras.delete(c));
+
+    const sortedExtras = Array.from(extras).sort((a, b) => a.localeCompare(b, 'he'));
+    return [...baseWithoutGeneral, ...sortedExtras, GENERAL_CATEGORY];
+  }, [customCategories, pantryItems, shoppingItems, catalog]);
+
+  const resolveCategoryForName = (rawName, explicitCategory = null) => {
+    if (explicitCategory) {
+      return normalizeCategoryName(explicitCategory);
+    }
+    const norm = normalizeItemName(rawName);
+    const fromPantry = pantryItems.find(p => normalizeItemName(p.name) === norm);
+    if (fromPantry?.category) return normalizeCategoryName(fromPantry.category);
+
+    const fromShopping = shoppingItems.find(s => normalizeItemName(s.name) === norm);
+    if (fromShopping?.category) return normalizeCategoryName(fromShopping.category);
+
+    const fromCatalog = catalog.find(c => normalizeItemName(c.name) === norm);
+    if (fromCatalog?.category) return normalizeCategoryName(fromCatalog.category);
+
+    return GENERAL_CATEGORY;
+  };
+
+  const saveToCatalog = async (rawName, category = GENERAL_CATEGORY) => {
     const cleanName = rawName.trim();
     if (!cleanName) return;
-    const exists = catalog.some(c => normalizeItemName(c.name) === normalizeItemName(cleanName));
-    if (!exists) {
+    const cleanCategory = normalizeCategoryName(category);
+    const existing = catalog.find(c => normalizeItemName(c.name) === normalizeItemName(cleanName));
+
+    if (!existing) {
       const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      await setDoc(doc(db, 'product_catalog', id), { id, name: cleanName });
+      await setDoc(doc(db, 'product_catalog', id), { id, name: cleanName, category: cleanCategory });
+    } else if (cleanCategory !== GENERAL_CATEGORY || !existing.category) {
+      await updateDoc(doc(db, 'product_catalog', existing.id), { category: cleanCategory });
     }
   };
 
-  const handleAddShoppingItem = async (e, overrideName = null, overrideQty = 1, notifyUser = false) => {
+  const ensureCategoryExists = async (rawCategory) => {
+    const cleanCat = normalizeCategoryName(rawCategory);
+    if (!cleanCat || cleanCat === GENERAL_CATEGORY || DEFAULT_CATEGORIES.includes(cleanCat)) {
+      return cleanCat || GENERAL_CATEGORY;
+    }
+
+    const alreadyInCustom = customCategories.some(
+      c => normalizeItemName(c) === normalizeItemName(cleanCat)
+    );
+    if (!alreadyInCustom) {
+      const docId = `cat_group_${encodeURIComponent(normalizeItemName(cleanCat))}`;
+      await setDoc(doc(db, 'product_categories', docId), {
+        name: cleanCat,
+        createdAt: Date.now(),
+      }, { merge: true });
+    }
+    return cleanCat;
+  };
+
+  const handleAssignItemCategory = async (targetCollection, item, rawCategory) => {
+    const cleanCat = await ensureCategoryExists(rawCategory);
+    await updateDoc(doc(db, targetCollection, item.id), {
+      category: cleanCat,
+    });
+    await saveToCatalog(item.name, cleanCat);
+  };
+
+  const handleCreateAndAssignCategory = async (e, targetCollection, item, itemKey) => {
+    e.preventDefault();
+    const trimmed = newCategoryDraft.trim();
+    if (!trimmed) return;
+    await handleAssignItemCategory(targetCollection, item, trimmed);
+    setNewCategoryDraft('');
+    setCreatingCategoryForKey(null);
+    setExpandedItemKey(itemKey);
+  };
+
+  const toggleItemExpansion = (itemKey) => {
+    setCreatingCategoryForKey(null);
+    setNewCategoryDraft('');
+    setExpandedItemKey(prev => (prev === itemKey ? null : itemKey));
+  };
+
+  const handleAddShoppingItem = async (e, overrideName = null, overrideQty = 1, notifyUser = false, overrideCategory = null) => {
     if (e) e.preventDefault();
     const name = (overrideName !== null ? overrideName : newShoppingName).trim();
     const qty = Math.max(1, Number(overrideName !== null ? overrideQty : newShoppingQty) || 1);
     if (!name) return;
 
-    await saveToCatalog(name);
-
     const existing = shoppingItems.find(item => normalizeItemName(item.name) === normalizeItemName(name));
+    const resolvedCat = resolveCategoryForName(name, overrideCategory || existing?.category);
+
+    await saveToCatalog(name, resolvedCat);
+
     if (existing) {
       await updateDoc(doc(db, 'shopping_items', existing.id), {
-        quantity: (existing.quantity || 1) + qty
+        quantity: (existing.quantity || 1) + qty,
+        category: normalizeCategoryName(existing.category || resolvedCat),
       });
     } else {
       const id = `shop_${Date.now()}`;
@@ -125,7 +265,8 @@ export default function ShoppingAndPantryTab() {
         id,
         name,
         quantity: qty,
-        createdAt: Date.now()
+        category: resolvedCat,
+        createdAt: Date.now(),
       });
     }
 
@@ -166,13 +307,15 @@ export default function ShoppingAndPantryTab() {
       return;
     }
 
-    await saveToCatalog(name);
+    const resolvedCat = resolveCategoryForName(name);
+    await saveToCatalog(name, resolvedCat);
 
     const id = `pantry_${Date.now()}`;
     await setDoc(doc(db, 'pantry_items', id), {
       id,
       name,
       quantity: qty,
+      category: resolvedCat,
       lowStock: false
     });
 
@@ -190,7 +333,7 @@ export default function ShoppingAndPantryTab() {
     });
 
     if (nextQty === 0) {
-      setRestockPrompt({ name: item.name, isOutOfStock: true });
+      setRestockPrompt({ name: item.name, category: item.category, isOutOfStock: true });
     }
   };
 
@@ -213,6 +356,7 @@ export default function ShoppingAndPantryTab() {
 
   const handleCompleteShoppingItem = async (shopItem) => {
     const boughtQty = Number(shopItem.quantity) || 1;
+    const itemCategory = normalizeCategoryName(shopItem.category);
     const existingPantry = pantryItems.find(
       p => normalizeItemName(p.name) === normalizeItemName(shopItem.name)
     );
@@ -220,6 +364,7 @@ export default function ShoppingAndPantryTab() {
     if (existingPantry) {
       await updateDoc(doc(db, 'pantry_items', existingPantry.id), {
         quantity: (Number(existingPantry.quantity) || 0) + boughtQty,
+        category: itemCategory !== GENERAL_CATEGORY ? itemCategory : normalizeCategoryName(existingPantry.category),
         lowStock: false
       });
     } else {
@@ -228,6 +373,7 @@ export default function ShoppingAndPantryTab() {
         id,
         name: shopItem.name,
         quantity: boughtQty,
+        category: itemCategory,
         lowStock: false
       });
     }
@@ -250,6 +396,95 @@ export default function ShoppingAndPantryTab() {
     if (!shoppingFilterQuery) return shoppingItems;
     return shoppingItems.filter(item => item.name.toLowerCase().includes(shoppingFilterQuery));
   }, [shoppingItems, shoppingFilterQuery]);
+
+  const groupedShoppingSections = useMemo(() => {
+    const map = new Map();
+    filteredShoppingItems.forEach(item => {
+      const cat = normalizeCategoryName(item.category);
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat).push(item);
+    });
+
+    const orderedCategories = [
+      ...allCategories.filter(cat => map.has(cat)),
+      ...Array.from(map.keys())
+        .filter(cat => !allCategories.includes(cat))
+        .sort((a, b) => a.localeCompare(b, 'he')),
+    ];
+
+    return orderedCategories.map(category => ({
+      category,
+      items: [...map.get(category)].sort((a, b) => a.name.localeCompare(b.name, 'he')),
+    }));
+  }, [filteredShoppingItems, allCategories]);
+
+  const renderCategoryEditor = (targetCollection, item, itemKey, accent = 'emerald') => {
+    const currentCat = normalizeCategoryName(item.category);
+    const isCreatingHere = creatingCategoryForKey === itemKey;
+    const focusRing = accent === 'blue' ? 'focus:border-blue-500' : 'focus:border-emerald-500';
+    const addBtnStyle =
+      accent === 'blue'
+        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+        : 'bg-emerald-600 hover:bg-emerald-700 text-white';
+
+    return (
+      <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <Tag className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="text-[11px] font-semibold text-slate-500 shrink-0">קטגוריה:</span>
+            <select
+              value={currentCat}
+              onChange={(e) => handleAssignItemCategory(targetCollection, item, e.target.value)}
+              className={`min-w-0 flex-1 max-w-[230px] rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none ${focusRing}`}
+            >
+              {allCategories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCreatingCategoryForKey(prev => (prev === itemKey ? null : itemKey));
+              setNewCategoryDraft('');
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 shrink-0"
+          >
+            <FolderPlus className="h-3 w-3 text-slate-600" />
+            <span>קטגוריה חדשה</span>
+          </button>
+        </div>
+
+        {isCreatingHere && (
+          <form
+            onSubmit={(e) => handleCreateAndAssignCategory(e, targetCollection, item, itemKey)}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              type="text"
+              value={newCategoryDraft}
+              onChange={(e) => setNewCategoryDraft(e.target.value)}
+              placeholder="שם קטגוריה חדשה..."
+              autoFocus
+              className={`flex-1 min-w-0 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-900 focus:outline-none ${focusRing}`}
+            />
+            <button
+              type="submit"
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 ${addBtnStyle}`}
+            >
+              שמור
+            </button>
+          </form>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -335,7 +570,7 @@ export default function ShoppingAndPantryTab() {
               <button
                 type="button"
                 onClick={async () => {
-                  await handleAddShoppingItem(null, restockPrompt.name, 1, true);
+                  await handleAddShoppingItem(null, restockPrompt.name, 1, true, restockPrompt.category);
                   setRestockPrompt(null);
                 }}
                 className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
@@ -468,7 +703,7 @@ export default function ShoppingAndPantryTab() {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-slate-900">רשימת קניות</h2>
-                  <p className="text-xs text-slate-500">סימון V יעביר אוטומטית למלאי הבית</p>
+                  <p className="text-xs text-slate-500">מסודר לפי קטגוריה וא'-ב' • סימון V יעביר למלאי</p>
                 </div>
               </div>
               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
@@ -566,6 +801,8 @@ export default function ShoppingAndPantryTab() {
                 const qty = Math.max(0, Number(item.quantity) || 0);
                 const isOutOfStock = qty === 0;
                 const isLowStock = Boolean(item.lowStock) && !isOutOfStock;
+                const itemKey = `pantry_${item.id}`;
+                const isExpanded = expandedItemKey === itemKey;
 
                 const rowStyle = isOutOfStock
                   ? 'border-rose-200 bg-rose-50/70'
@@ -576,104 +813,107 @@ export default function ShoppingAndPantryTab() {
                 return (
                   <li
                     key={item.id}
-                    className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                    className={`rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
                   >
-                    {/* שם הפריט והחיווי */}
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`text-sm font-semibold truncate ${
-                          isOutOfStock
-                            ? 'text-rose-900'
-                            : isLowStock
-                            ? 'text-amber-950'
-                            : 'text-slate-800'
-                        }`}
-                      >
-                        {item.name}
-                      </span>
-
-                      {isOutOfStock && (
-                        <span className="inline-flex shrink-0 items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                          חסר
-                        </span>
-                      )}
-
-                      {isLowStock && (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                          <AlertTriangle className="h-3 w-3" /> מתקרב לסיום
-                        </span>
-                      )}
-                    </div>
-
-                    {/* כפתורי פעולה (אייקונים בלבד) וכמויות */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleAddShoppingItem(null, item.name, 1, true)}
-                        title="הוסף פריט לרשימת הקניות"
-                        aria-label="הוסף פריט לרשימת הקניות"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
-                      >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleLowStock(item)}
-                        title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
-                        aria-label={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
-                        className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
-                          item.lowStock
-                            ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
-                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
-                        }`}
-                      >
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                      </button>
-
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      {/* שם הפריט (לחיצה מציגה שם מלא ופותחת קטגוריה) */}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <button
                           type="button"
-                          onClick={() => handleDecreasePantry(item)}
-                          disabled={qty === 0}
-                          title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-
-                        <span
-                          className={`min-w-[1.5rem] text-center text-sm font-bold ${
+                          onClick={() => toggleItemExpansion(itemKey)}
+                          title="לחץ להצגת שם מלא וניהול קטגוריה"
+                          className={`text-right text-sm font-semibold ${
+                            isExpanded ? 'whitespace-normal break-words' : 'truncate'
+                          } ${
                             isOutOfStock
-                              ? 'text-rose-700'
+                              ? 'text-rose-900'
                               : isLowStock
-                              ? 'text-amber-800'
-                              : 'text-slate-900'
+                              ? 'text-amber-950'
+                              : 'text-slate-800'
                           }`}
                         >
-                          {qty}
-                        </span>
+                          {item.name}
+                        </button>
+
+                        {isOutOfStock && (
+                          <span className="inline-flex shrink-0 items-center rounded-md border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                            חסר
+                          </span>
+                        )}
+                      </div>
+
+                      {/* כפתורי פעולה (אייקונים בלבד) וכמויות */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAddShoppingItem(null, item.name, 1, true, item.category)}
+                          title="הוסף פריט לרשימת הקניות"
+                          aria-label="הוסף פריט לרשימת הקניות"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
+                        >
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                        </button>
 
                         <button
                           type="button"
-                          onClick={() => handleIncreasePantry(item)}
-                          title="הוסף יחידה"
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                          onClick={() => handleToggleLowStock(item)}
+                          title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                          aria-label={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
+                            item.lowStock
+                              ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
+                          }`}
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDecreasePantry(item)}
+                            disabled={qty === 0}
+                            title={qty === 0 ? 'הכמות כבר 0 (חסר)' : 'הפחת כמות'}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+
+                          <span
+                            className={`min-w-[1.5rem] text-center text-sm font-bold ${
+                              isOutOfStock
+                                ? 'text-rose-700'
+                                : isLowStock
+                                ? 'text-amber-800'
+                                : 'text-slate-900'
+                            }`}
+                          >
+                            {qty}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleIncreasePantry(item)}
+                            title="הוסף יחידה"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePantryItem(item.id)}
+                          title="מחק מוצר מהמלאי"
+                          aria-label="מחק מוצר מהמלאי"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePantryItem(item.id)}
-                        title="מחק מוצר מהמלאי"
-                        aria-label="מחק מוצר מהמלאי"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
                     </div>
+
+                    {isExpanded && renderCategoryEditor('pantry_items', item, itemKey, 'emerald')}
                   </li>
                 );
               })}
@@ -681,70 +921,102 @@ export default function ShoppingAndPantryTab() {
           )}
         </section>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
+        <section className="space-y-3">
           {shoppingItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-8 text-center text-xs text-slate-400">
               רשימת הקניות ריקה כרגע
             </div>
-          ) : filteredShoppingItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+          ) : groupedShoppingSections.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-8 text-center text-xs text-slate-400">
               לא נמצאו פריטים ברשימת הקניות התואמים ל- &ldquo;{newShoppingName.trim()}&rdquo;
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {filteredShoppingItems.map(item => {
-                const qty = Math.max(1, Number(item.quantity) || 1);
-                return (
-                  <li key={item.id} className="flex items-center justify-between gap-2 py-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => handleCompleteShoppingItem(item)}
-                        title="נקנה! העבר למלאי הבית"
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-white text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
-                      >
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <span className="text-sm font-semibold text-slate-800 truncate">{item.name}</span>
-                    </div>
+            groupedShoppingSections.map(group => (
+              <div
+                key={group.category}
+                className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs"
+              >
+                <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800">
+                    {group.category}
+                  </h3>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                    {group.items.length}
+                  </span>
+                </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleDecreaseShoppingItemQty(item)}
-                        disabled={qty <= 1}
-                        title={qty <= 1 ? 'כמות מינימלית 1' : 'הפחת כמות'}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
+                <ul className="divide-y divide-slate-100">
+                  {group.items.map(item => {
+                    const qty = Math.max(1, Number(item.quantity) || 1);
+                    const itemKey = `shop_${item.id}`;
+                    const isExpanded = expandedItemKey === itemKey;
 
-                      <span className="min-w-[1.75rem] text-center text-sm font-bold text-blue-700">
-                        {qty}
-                      </span>
+                    return (
+                      <li key={item.id} className="py-2.5 first:pt-1 last:pb-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCompleteShoppingItem(item)}
+                              title="נקנה! העבר למלאי הבית"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-white text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleItemExpansion(itemKey)}
+                              title="לחץ להצגת שם מלא וניהול קטגוריה"
+                              className={`text-right text-sm font-semibold text-slate-800 ${
+                                isExpanded ? 'whitespace-normal break-words' : 'truncate'
+                              }`}
+                            >
+                              {item.name}
+                            </button>
+                          </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleIncreaseShoppingItemQty(item)}
-                        title="הוסף יחידה"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleDecreaseShoppingItemQty(item)}
+                              disabled={qty <= 1}
+                              title={qty <= 1 ? 'כמות מינימלית 1' : 'הפחת כמות'}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteShoppingItem(item.id)}
-                        title="הסר מהרשימה"
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                            <span className="min-w-[1.75rem] text-center text-sm font-bold text-blue-700">
+                              {qty}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleIncreaseShoppingItemQty(item)}
+                              title="הוסף יחידה"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteShoppingItem(item.id)}
+                              title="הסר מהרשימה"
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && renderCategoryEditor('shopping_items', item, itemKey, 'blue')}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))
           )}
         </section>
       )}
