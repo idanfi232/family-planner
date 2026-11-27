@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X } from 'lucide-react';
+import { ShoppingCart, Home, Plus, Minus, Check, Trash2, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 
 const normalizeItemName = (name = '') => name.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -20,9 +20,25 @@ export default function ShoppingAndPantryTab() {
   const [pantryError, setPantryError] = useState('');
 
   const [restockPrompt, setRestockPrompt] = useState(null);
+  const [addedToast, setAddedToast] = useState(null);
 
   // מעקב אחר נקודת התחלה של החלקה (Swipe) במובייל
   const touchStartRef = useRef(null);
+  const toastTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showAddedFeedback = (itemName) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setAddedToast(itemName);
+    toastTimerRef.current = setTimeout(() => {
+      setAddedToast(null);
+    }, 2500);
+  };
 
   const handleTouchStart = (e) => {
     if (e.touches.length !== 1) return;
@@ -90,7 +106,7 @@ export default function ShoppingAndPantryTab() {
     }
   };
 
-  const handleAddShoppingItem = async (e, overrideName = null, overrideQty = 1) => {
+  const handleAddShoppingItem = async (e, overrideName = null, overrideQty = 1, notifyUser = false) => {
     if (e) e.preventDefault();
     const name = (overrideName !== null ? overrideName : newShoppingName).trim();
     const qty = Math.max(1, Number(overrideName !== null ? overrideQty : newShoppingQty) || 1);
@@ -111,6 +127,10 @@ export default function ShoppingAndPantryTab() {
         quantity: qty,
         createdAt: Date.now()
       });
+    }
+
+    if (notifyUser) {
+      showAddedFeedback(name);
     }
 
     if (overrideName === null) {
@@ -286,6 +306,26 @@ export default function ShoppingAndPantryTab() {
           </div>
         </div>
 
+        {addedToast && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-emerald-900 shadow-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span className="truncate">הפריט &ldquo;{addedToast}&rdquo; נוסף לרשימת הקניות בהצלחה</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAddedToast(null)}
+              title="סגור הודעה"
+              className="rounded-lg p-1 text-emerald-700 hover:bg-emerald-100"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {restockPrompt && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
             <div className="text-xs sm:text-sm font-semibold text-amber-900">
@@ -295,7 +335,7 @@ export default function ShoppingAndPantryTab() {
               <button
                 type="button"
                 onClick={async () => {
-                  await handleAddShoppingItem(null, restockPrompt.name, 1);
+                  await handleAddShoppingItem(null, restockPrompt.name, 1, true);
                   setRestockPrompt(null);
                 }}
                 className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
@@ -536,9 +576,9 @@ export default function ShoppingAndPantryTab() {
                 return (
                   <li
                     key={item.id}
-                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
+                    className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-colors ${rowStyle}`}
                   >
-                    {/* שורה 1 במובייל / שמאל בדסקטופ: שם הפריט והחיווי */}
+                    {/* שם הפריט והחיווי */}
                     <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`text-sm font-semibold truncate ${
@@ -565,35 +605,33 @@ export default function ShoppingAndPantryTab() {
                       )}
                     </div>
 
-                    {/* שורה 2 במובייל / ימין בדסקטופ: שורת הפקודות האחידה */}
-                    <div className="flex items-center justify-between sm:justify-end gap-1.5 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100/80">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleAddShoppingItem(null, item.name, 1)}
-                          title="הוסף פריט לרשימת הקניות"
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                        >
-                          <ShoppingCart className="h-3 w-3" />
-                          <span>הוסף לקניות</span>
-                        </button>
+                    {/* כפתורי פעולה (אייקונים בלבד) וכמויות */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleAddShoppingItem(null, item.name, 1, true)}
+                        title="הוסף פריט לרשימת הקניות"
+                        aria-label="הוסף פריט לרשימת הקניות"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100"
+                      >
+                        <ShoppingCart className="h-3.5 w-3.5" />
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleToggleLowStock(item)}
-                          title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                            item.lowStock
-                              ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
-                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
-                          }`}
-                        >
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>{item.lowStock ? 'מסומן לסיום' : 'מתקרב לסיום'}</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLowStock(item)}
+                        title={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                        aria-label={item.lowStock ? 'בטל סימון מתקרב לסיום' : 'סמן כמתקרב לסיום'}
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
+                          item.lowStock
+                            ? 'border-amber-400 bg-amber-200/80 text-amber-950 hover:bg-amber-300/70'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800'
+                        }`}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                      </button>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => handleDecreasePantry(item)}
@@ -605,7 +643,7 @@ export default function ShoppingAndPantryTab() {
                         </button>
 
                         <span
-                          className={`min-w-[1.75rem] text-center text-sm font-bold ${
+                          className={`min-w-[1.5rem] text-center text-sm font-bold ${
                             isOutOfStock
                               ? 'text-rose-700'
                               : isLowStock
@@ -624,16 +662,17 @@ export default function ShoppingAndPantryTab() {
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePantryItem(item.id)}
-                          title="מחק מוצר מהמלאי"
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePantryItem(item.id)}
+                        title="מחק מוצר מהמלאי"
+                        aria-label="מחק מוצר מהמלאי"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </li>
                 );

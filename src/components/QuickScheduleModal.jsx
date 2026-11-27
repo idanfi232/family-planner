@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, BookOpen, Sparkles, Clock, Calendar, Ban } from 'lucide-react';
 import { EVENT_CATEGORIES, normalizeCategory } from '../types/models';
+
+const getLocalTodayStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 export default function QuickScheduleModal({
   isOpen,
@@ -10,8 +18,11 @@ export default function QuickScheduleModal({
   selectedMemberName,
   templates = [],
   allEvents = [],
+  todayStr = getLocalTodayStr(),
 }) {
   const [activeMember, setActiveMember] = useState(selectedMemberName || '');
+  const scrollContainerRef = useRef(null);
+  const dayCardRefs = useRef({});
 
   useEffect(() => {
     if (selectedMemberName && selectedMemberName !== 'all') {
@@ -110,6 +121,26 @@ export default function QuickScheduleModal({
     });
   }, [weekDays, activeMember, templates, allEvents]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const frame = requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      const todayEl = dayCardRefs.current[todayStr];
+
+      if (container && todayEl) {
+        const containerRect = container.getBoundingClientRect();
+        const todayRect = todayEl.getBoundingClientRect();
+        const targetTop = container.scrollTop + (todayRect.top - containerRect.top);
+        container.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+      } else if (container) {
+        container.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, activeMember, todayStr, weeklyByDay.length]);
+
   if (!isOpen) return null;
 
   return (
@@ -156,7 +187,7 @@ export default function QuickScheduleModal({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {weeklyByDay.map((day) => {
               const hasContent =
@@ -168,10 +199,24 @@ export default function QuickScheduleModal({
               return (
                 <div
                   key={day.dateStr}
+                  ref={(el) => {
+                    if (el) {
+                      dayCardRefs.current[day.dateStr] = el;
+                    } else {
+                      delete dayCardRefs.current[day.dateStr];
+                    }
+                  }}
                   className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5 flex flex-col gap-2.5"
                 >
                   <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="text-sm font-bold text-slate-800">יום {day.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-slate-800">יום {day.name}</span>
+                      {day.dateStr === todayStr && (
+                        <span className="rounded-full bg-teal-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          היום
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[11px] font-medium text-slate-400">
                       {day.dateStr ? day.dateStr.split('-').slice(1).reverse().join('/') : ''}
                     </span>
