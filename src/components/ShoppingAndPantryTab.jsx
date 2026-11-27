@@ -63,7 +63,7 @@ export default function ShoppingAndPantryTab() {
 
     const unsubShopping = onSnapshot(collection(db, 'shopping_items'), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => a.name.localeCompare(b.name, 'he'));
       setShoppingItems(list);
     });
 
@@ -168,7 +168,10 @@ export default function ShoppingAndPantryTab() {
     await updateDoc(doc(db, 'pantry_items', item.id), {
       quantity: nextQty
     });
-    setRestockPrompt({ name: item.name, isOutOfStock: nextQty === 0 });
+
+    if (nextQty === 0) {
+      setRestockPrompt({ name: item.name, isOutOfStock: true });
+    }
   };
 
   const handleIncreasePantry = async (item) => {
@@ -176,6 +179,10 @@ export default function ShoppingAndPantryTab() {
     await updateDoc(doc(db, 'pantry_items', item.id), {
       quantity: nextQty
     });
+  };
+
+  const handleDeletePantryItem = async (id) => {
+    await deleteDoc(doc(db, 'pantry_items', id));
   };
 
   const handleToggleLowStock = async (item) => {
@@ -217,6 +224,12 @@ export default function ShoppingAndPantryTab() {
     if (!pantryFilterQuery) return pantryItems;
     return pantryItems.filter(item => item.name.toLowerCase().includes(pantryFilterQuery));
   }, [pantryItems, pantryFilterQuery]);
+
+  const shoppingFilterQuery = newShoppingName.trim().toLowerCase();
+  const filteredShoppingItems = useMemo(() => {
+    if (!shoppingFilterQuery) return shoppingItems;
+    return shoppingItems.filter(item => item.name.toLowerCase().includes(shoppingFilterQuery));
+  }, [shoppingItems, shoppingFilterQuery]);
 
   return (
     <div
@@ -276,18 +289,11 @@ export default function ShoppingAndPantryTab() {
         {restockPrompt && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5 shadow-sm">
             <div className="text-xs sm:text-sm font-semibold text-amber-900">
-              {restockPrompt.isOutOfStock ? (
-                <>
-                  <span className="underline">{restockPrompt.name}</span> הסתיים במלאי (מסומן כחסר). להוסיף לרשימת הקניות?
-                </>
-              ) : (
-                <>
-                  הורדת <span className="underline">{restockPrompt.name}</span> מהמלאי. להוסיף לרשימת הקניות?
-                </>
-              )}
+              <span className="underline">{restockPrompt.name}</span> הסתיים במלאי (מסומן כחסר). להוסיף לרשימת הקניות?
             </div>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={async () => {
                   await handleAddShoppingItem(null, restockPrompt.name, 1);
                   setRestockPrompt(null);
@@ -297,6 +303,7 @@ export default function ShoppingAndPantryTab() {
                 כן, הוסף לקניות
               </button>
               <button
+                type="button"
                 onClick={() => setRestockPrompt(null)}
                 className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
               >
@@ -414,7 +421,7 @@ export default function ShoppingAndPantryTab() {
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-5 shadow-xs">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <ShoppingCart className="h-5 w-5" />
@@ -425,19 +432,33 @@ export default function ShoppingAndPantryTab() {
                 </div>
               </div>
               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-                {shoppingItems.length} פריטים
+                {shoppingFilterQuery
+                  ? `${filteredShoppingItems.length} / ${shoppingItems.length}`
+                  : `${shoppingItems.length} פריטים`}
               </span>
             </div>
 
             <form onSubmit={(e) => handleAddShoppingItem(e)} className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <input
-                type="text"
-                list="product-catalog-list"
-                value={newShoppingName}
-                onChange={(e) => setNewShoppingName(e.target.value)}
-                placeholder="הוסף מוצר לקנייה..."
-                className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
-              />
+              <div className="relative flex-1 min-w-0">
+                <input
+                  type="text"
+                  list="product-catalog-list"
+                  value={newShoppingName}
+                  onChange={(e) => setNewShoppingName(e.target.value)}
+                  placeholder="חפש בקניות או הוסף מוצר..."
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-slate-50 py-2 pr-3 pl-7 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none"
+                />
+                {newShoppingName && (
+                  <button
+                    type="button"
+                    onClick={() => setNewShoppingName('')}
+                    title="נקה חיפוש"
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 p-0.5 shrink-0">
                 <button
@@ -469,6 +490,21 @@ export default function ShoppingAndPantryTab() {
                 <Plus className="h-4 w-4" />
               </button>
             </form>
+
+            {shoppingFilterQuery && (
+              <div className="mt-2.5 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-1.5 text-[11px] text-slate-600 border border-slate-200/80">
+                <span>
+                  מסנן לפי: <strong className="text-slate-800">&ldquo;{newShoppingName.trim()}&rdquo;</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewShoppingName('')}
+                  className="font-semibold text-blue-700 hover:underline"
+                >
+                  הצג הכל
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -588,6 +624,15 @@ export default function ShoppingAndPantryTab() {
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePantryItem(item.id)}
+                          title="מחק מוצר מהמלאי"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -602,9 +647,13 @@ export default function ShoppingAndPantryTab() {
             <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
               רשימת הקניות ריקה כרגע
             </div>
+          ) : filteredShoppingItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+              לא נמצאו פריטים ברשימת הקניות התואמים ל- &ldquo;{newShoppingName.trim()}&rdquo;
+            </div>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {shoppingItems.map(item => {
+              {filteredShoppingItems.map(item => {
                 const qty = Math.max(1, Number(item.quantity) || 1);
                 return (
                   <li key={item.id} className="flex items-center justify-between gap-2 py-2.5">

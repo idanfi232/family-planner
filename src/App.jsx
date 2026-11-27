@@ -30,11 +30,14 @@ const getTodayStr = () => {
 };
 
 const getSundayOfWeek = (date) => {
-  const d = new Date(date);
+  const d = typeof date === 'string' ? new Date(`${date}T00:00:00`) : new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day;
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dayNum = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dayNum}`;
 };
 
 const sendTelegramNotification = async (task, actionType) => {
@@ -42,9 +45,9 @@ const sendTelegramNotification = async (task, actionType) => {
   if (!task || !task.date) return;
 
   const todaySundayStr = getSundayOfWeek(new Date());
-  const saturdayDate = new Date(todaySundayStr);
+  const saturdayDate = new Date(`${todaySundayStr}T00:00:00`);
   saturdayDate.setDate(saturdayDate.getDate() + 6);
-  const todaySaturdayStr = saturdayDate.toISOString().split('T')[0];
+  const todaySaturdayStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
 
   if (task.date < todaySundayStr || task.date > todaySaturdayStr) {
     return;
@@ -116,8 +119,10 @@ export default function App() {
   const [headerHeight, setHeaderHeight] = useState(104);
   const headerRef = useRef(null);
   const dayTouchStartRef = useRef(null);
+  const weekDateInputRef = useRef(null);
 
   const todayStr = getTodayStr();
+  const currentSystemWeekStart = getSundayOfWeek(new Date());
 
   const isAuthorizedUser = Boolean(
     user?.email && AUTHORIZED_EMAILS.includes(user.email.trim().toLowerCase())
@@ -303,9 +308,41 @@ export default function App() {
   }
 
   const changeWeek = (offsetWeeks) => {
-    const d = new Date(currentWeekStart);
+    const d = new Date(`${currentWeekStart}T00:00:00`);
     d.setDate(d.getDate() + offsetWeeks * 7);
-    setCurrentWeekStart(d.toISOString().split('T')[0]);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    setCurrentWeekStart(`${y}-${m}-${dayNum}`);
+  };
+
+  const handleSelectWeekDate = (pickedDateStr) => {
+    if (!pickedDateStr) return;
+    setCurrentWeekStart(getSundayOfWeek(pickedDateStr));
+    const pickedObj = new Date(`${pickedDateStr}T00:00:00`);
+    if (!isNaN(pickedObj.getTime())) {
+      setSelectedDayIndex(pickedObj.getDay());
+    }
+  };
+
+  const openWeekCalendarPicker = () => {
+    const input = weekDateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // fallback below
+      }
+    }
+    input.focus();
+    input.click();
+  };
+
+  const handleJumpToCurrentWeek = () => {
+    setCurrentWeekStart(getSundayOfWeek(new Date()));
+    setSelectedDayIndex(new Date().getDay());
   };
 
   const handlePopulateWeek = async () => {
@@ -457,9 +494,12 @@ export default function App() {
   };
 
   const allWeekDays = DAYS_OF_WEEK.map((day, index) => {
-    const d = new Date(currentWeekStart);
+    const d = new Date(`${currentWeekStart}T00:00:00`);
     d.setDate(d.getDate() + index);
-    const dateStr = d.toISOString().split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${dayNum}`;
     const rawTasks = events.filter((e) => e.date === dateStr);
     return { ...day, dateStr, tasks: rawTasks };
   });
@@ -485,6 +525,59 @@ export default function App() {
   const weekEndStr = weekDays[6]?.dateStr;
   const formatShort = (str) => (str ? str.split('-').slice(1).reverse().join('/') : '');
   const activeFiltersCount = (selectedMemberFilter !== 'all' ? 1 : 0) + (selectedCategoryFilter !== 'all' ? 1 : 0);
+  const isCurrentWeek = currentWeekStart === currentSystemWeekStart;
+
+  const renderWeekNavigationBar = (compact = false) => (
+    <div className={`flex items-center justify-between gap-2 ${compact ? '' : 'bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-xs'}`}>
+      <button
+        type="button"
+        onClick={() => changeWeek(-1)}
+        className="rounded-xl px-2.5 sm:px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1 shrink-0"
+      >
+        <ChevronRight className="h-4 w-4" /> שבוע קודם
+      </button>
+
+      <div className="relative flex flex-col items-center justify-center min-w-0">
+        <button
+          type="button"
+          onClick={openWeekCalendarPicker}
+          title="לחץ לבחירת תאריך מלוח שנה"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-800 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+        >
+          <CalendarIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+          <span className="whitespace-nowrap">{formatShort(currentWeekStart)} - {formatShort(weekEndStr)}</span>
+        </button>
+
+        <input
+          ref={weekDateInputRef}
+          type="date"
+          aria-label="בחר תאריך מתוך לוח שנה"
+          value={viewMode === 'day' ? (weekDays[selectedDayIndex]?.dateStr || currentWeekStart) : currentWeekStart}
+          onChange={(e) => handleSelectWeekDate(e.target.value)}
+          className="sr-only"
+          tabIndex={-1}
+        />
+
+        {!isCurrentWeek && (
+          <button
+            type="button"
+            onClick={handleJumpToCurrentWeek}
+            className="mt-0.5 text-[10px] font-bold text-blue-600 hover:underline"
+          >
+            חזור להשבוע
+          </button>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => changeWeek(1)}
+        className="rounded-xl px-2.5 sm:px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1 shrink-0"
+      >
+        שבוע הבא <ChevronLeft className="h-4 w-4" />
+      </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-50 pb-24">
@@ -600,20 +693,14 @@ export default function App() {
             <div className="mt-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between gap-1.5 min-w-0">
 
-                <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5 shrink-0">
-                  <button onClick={() => changeWeek(-1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => {
-                    setCurrentWeekStart(getSundayOfWeek(new Date()));
-                    setSelectedDayIndex(new Date().getDay());
-                  }} className="px-1.5 py-0.5 text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap">
-                    {formatShort(currentWeekStart)} - {formatShort(weekEndStr)}
-                  </button>
-                  <button onClick={() => changeWeek(1)} className="rounded-lg p-1 text-slate-600 hover:bg-white">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickScheduleOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold text-teal-800 shadow-2xs hover:bg-teal-100 shrink-0"
+                >
+                  <Eye className="h-3.5 w-3.5 text-teal-700" />
+                  <span>מבט מהיר</span>
+                </button>
 
                 <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                   <div className="flex rounded-xl border border-slate-200 bg-slate-100 p-0.5">
@@ -702,15 +789,6 @@ export default function App() {
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                     <button
                       type="button"
-                      onClick={() => setIsQuickScheduleOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100"
-                    >
-                      <Eye className="h-3.5 w-3.5 text-teal-700" />
-                      <span>מבט מהיר</span>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => setIsMembersModalOpen(true)}
                       className="inline-flex sm:hidden items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                     >
@@ -743,20 +821,24 @@ export default function App() {
           isLoading ? (
             <div className="flex h-64 items-center justify-center text-sm text-slate-500">טוען נתונים מהענן...</div>
           ) : viewMode === 'week' ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-              {weekDays.map((day) => (
-                <DayColumn
-                  key={day.dateStr}
-                  dayName={day.name}
-                  dateStr={day.dateStr}
-                  tasks={day.tasks}
-                  members={members}
-                  onAddTask={() => handleOpenAddModal(day.id, day.dateStr)}
-                  onEditTask={handleOpenEditModal}
-                  onToggleComplete={handleToggleCompleteTask}
-                  isToday={day.dateStr === todayStr}
-                />
-              ))}
+            <div className="space-y-4">
+              {renderWeekNavigationBar(false)}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+                {weekDays.map((day) => (
+                  <DayColumn
+                    key={day.dateStr}
+                    dayName={day.name}
+                    dateStr={day.dateStr}
+                    tasks={day.tasks}
+                    members={members}
+                    onAddTask={() => handleOpenAddModal(day.id, day.dateStr)}
+                    onEditTask={handleOpenEditModal}
+                    onToggleComplete={handleToggleCompleteTask}
+                    isToday={day.dateStr === todayStr}
+                  />
+                ))}
+              </div>
             </div>
           ) : (
             <div
@@ -766,30 +848,36 @@ export default function App() {
             >
               <div
                 style={{ top: `${headerHeight}px` }}
-                className="sticky z-20 flex items-center justify-between mb-3 bg-slate-50/95 pt-1.5 pb-1.5 backdrop-blur-md"
+                className="sticky z-20 mb-3 bg-slate-50/95 pt-1.5 pb-1.5 backdrop-blur-md"
               >
-                <div className="flex w-full items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-                  <button
-                    onClick={() => setSelectedDayIndex((prev) => (prev > 0 ? prev - 1 : 6))}
-                    className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
-                  >
-                    <ChevronRight className="h-4 w-4" /> יום קודם
-                  </button>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
-                      {weekDays[selectedDayIndex].dateStr === todayStr && (
-                        <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">היום</span>
-                      )}
+                <div className="w-full bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                  {renderWeekNavigationBar(true)}
+
+                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDayIndex((prev) => (prev > 0 ? prev - 1 : 6))}
+                      className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                    >
+                      <ChevronRight className="h-4 w-4" /> יום קודם
+                    </button>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <h2 className="text-sm font-bold text-slate-800">יום {weekDays[selectedDayIndex].name}</h2>
+                        {weekDays[selectedDayIndex].dateStr === todayStr && (
+                          <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">היום</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
                     </div>
-                    <span className="text-xs text-slate-400">{formatShort(weekDays[selectedDayIndex].dateStr)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDayIndex((prev) => (prev < 6 ? prev + 1 : 0))}
+                      className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
+                    >
+                      יום הבא <ChevronLeft className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setSelectedDayIndex((prev) => (prev < 6 ? prev + 1 : 0))}
-                    className="rounded-xl px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 flex items-center gap-1"
-                  >
-                    יום הבא <ChevronLeft className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
 
